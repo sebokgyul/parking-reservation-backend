@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -18,7 +19,11 @@ public class ApiExceptionHandler {
         return response(exception.status(), exception.getMessage(), request.getRequestURI());
     }
 
-    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({
+            HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class
+    })
     public ResponseEntity<ErrorResponse> handleInvalidInput(Exception exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "Malformed or invalid request value", request.getRequestURI());
     }
@@ -32,3 +37,4 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(status).body(new ErrorResponse(OffsetDateTime.now(ZoneOffset.UTC), status.value(), status.getReasonPhrase(), message, path));
     }
 }
+
