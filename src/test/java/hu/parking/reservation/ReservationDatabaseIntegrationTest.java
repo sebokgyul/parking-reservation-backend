@@ -2,6 +2,8 @@ package hu.parking.reservation;
 
 import hu.parking.reservation.api.ApiException;
 import hu.parking.reservation.api.CreateReservationRequest;
+import hu.parking.reservation.domain.Reservation;
+import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.VehicleType;
 import hu.parking.reservation.service.ReservationService;
 import org.junit.jupiter.api.Test;
@@ -14,9 +16,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @Testcontainers
@@ -34,14 +39,81 @@ class ReservationDatabaseIntegrationTest {
     @Autowired
     ReservationService reservationService;
 
+    private static final OffsetDateTime T10 = OffsetDateTime.parse("2030-06-10T10:00:00+02:00");
+    private static final OffsetDateTime T11 = OffsetDateTime.parse("2030-06-10T11:00:00+02:00");
+    private static final OffsetDateTime T12 = OffsetDateTime.parse("2030-06-10T12:00:00+02:00");
+
     @Test
     void databaseConstraintRejectsOverlappingActiveReservations() {
-        reservationService.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD,
-                OffsetDateTime.parse("2030-06-10T10:00:00+02:00"), OffsetDateTime.parse("2030-06-10T11:00:00+02:00")));
+        reservationService.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, T10, T11));
 
-        ApiException exception = assertThrows(ApiException.class, () -> reservationService.create(new CreateReservationRequest(1L, "Bela", VehicleType.STANDARD,
-                OffsetDateTime.parse("2030-06-10T10:30:00+02:00"), OffsetDateTime.parse("2030-06-10T11:30:00+02:00"))));
+        ApiException exception = assertThrows(ApiException.class, () ->
+                reservationService.create(new CreateReservationRequest(1L, "Bela", VehicleType.STANDARD,
+                        OffsetDateTime.parse("2030-06-10T10:30:00+02:00"),
+                        OffsetDateTime.parse("2030-06-10T11:30:00+02:00"))));
 
         assertEquals(409, exception.status().value());
+    }
+
+    @Test
+    void adjacentReservationsDoNotOverlap() {
+        reservationService.create(new CreateReservationRequest(2L, "Anna", VehicleType.STANDARD, T10, T11));
+
+        Reservation second = reservationService.create(new CreateReservationRequest(2L, "Bela", VehicleType.STANDARD, T11, T12));
+
+        assertEquals(ReservationStatus.ACTIVE, second.status());
+    }
+
+    @Test
+    void cancelledReservationFreesUpTheSlot() {
+        Reservation first = reservationService.create(new CreateReservationRequest(3L, "Anna", VehicleType.STANDARD, T10, T11));
+        reservationService.cancel(first.id());
+
+        Reservation rebooked = reservationService.create(new CreateReservationRequest(3L, "Bela", VehicleType.STANDARD, T10, T11));
+
+        assertEquals(ReservationStatus.ACTIVE, rebooked.status());
+    }
+
+    @Test
+    void electricSpotRejectsStandardVehicle() {
+        ApiException exception = assertThrows(ApiException.class, () ->
+                reservationService.create(new CreateReservationRequest(5L, "Anna", VehicleType.STANDARD, T10, T11)));
+
+        assertEquals(409, exception.status().value());
+    }
+
+    @Test
+    void electricSpotAcceptsElectricVehicle() {
+        Reservation reservation = reservationService.create(new CreateReservationRequest(6L, "Anna", VehicleType.ELECTRIC, T10, T11));
+
+        assertEquals(ReservationStatus.ACTIVE, reservation.status());
+    }
+
+    @Test
+    void inactiveSpotRejectsReservation() {
+        ApiException exception = assertThrows(ApiException.class, () ->
+                reservationService.create(new CreateReservationRequest(7L, "Anna", VehicleType.STANDARD, T10, T11)));
+
+        assertEquals(409, exception.status().value());
+    }
+
+    @Test
+    void findReservationsReturnsOnlyActiveOverlappingOnes() {
+        Reservation r1 = reservationService.create(new CreateReservationRequest(4L, "Anna", VehicleType.STANDARD, T10, T11));
+        reservationService.cancel(r1.id());
+        reservationService.create(new CreateReservationRequest(4L, "Bela", VehicleType.STANDARD, T11, T12));
+
+        List<Reservation> result = reservationService.findReservations(4L, T10, T12);
+
+        assertEquals(1, result.size());
+        assertEquals("Bela", result.get(0).requesterName());
+        assertEquals(ReservationStatus.ACTIVE, result.get(0).status());
+    }
+
+    @Test
+    void cancelReturns404ForMissingReservation() {
+        ApiException exception = assertThrows(ApiException.class, () -> reservationService.cancel(999999L));
+
+        assertEquals(404, exception.status().value());
     }
 }
