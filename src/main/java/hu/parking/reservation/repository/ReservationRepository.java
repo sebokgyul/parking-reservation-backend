@@ -53,12 +53,12 @@ public class ReservationRepository {
                 """, this::mapReservation, reservationId).stream().findFirst();
     }
 
-    public Reservation cancel(long reservationId) {
-        return jdbcTemplate.queryForObject("""
+    public Optional<Reservation> cancel(long reservationId) {
+        return jdbcTemplate.query("""
                 UPDATE reservations SET status = 'CANCELLED'
                 WHERE id = ? AND status = 'ACTIVE'
                 RETURNING id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
-                """, this::mapReservation, reservationId);
+                """, this::mapReservation, reservationId).stream().findFirst();
     }
 
     private Reservation mapReservation(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
@@ -69,3 +69,4 @@ public class ReservationRepository {
                 ReservationStatus.valueOf(rs.getString("status")), rs.getObject("created_at", OffsetDateTime.class));
     }
 }
+

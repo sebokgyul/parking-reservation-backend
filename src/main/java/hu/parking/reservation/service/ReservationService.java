@@ -73,7 +73,8 @@ public class ReservationService {
         if (reservation.status() != ReservationStatus.ACTIVE) {
             throw new ApiException(HttpStatus.CONFLICT, "Reservation is already cancelled");
         }
-        return reservationRepository.cancel(reservationId);
+        return reservationRepository.cancel(reservationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "Reservation is already cancelled"));
     }
 
     private ParkingSpot requireSpot(long spotId) {
@@ -107,3 +108,4 @@ public class ReservationService {
         }
     }
 }
+
