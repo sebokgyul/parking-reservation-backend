@@ -16,6 +16,10 @@ services:
   backend:
     build:
       context: .
+    environment:
+      DATABASE_URL: jdbc:postgresql://database:5432/parking
+      DATABASE_USERNAME: parking
+      DATABASE_PASSWORD: parking
     ports:
       - "8080:8080"
     depends_on:
