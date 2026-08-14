@@ -1,6 +1,6 @@
 # AI-eszköz használata
 
-A fejlesztés során AI-asszisztens (Claude) segítségét vettem igénybe. A munka menete úgy történt, hogy az architekturális döntéseket, a technológiai stack választását és a specifikus implementációs lépéseket én határoztam meg, az AI pedig a kódolásban, a boilerplate írásában és a hibák azonosításában segített. Minden generált kódot átnéztem, teszteltem, és szükség esetén módosítottam.
+A fejlesztés során AI-asszisztens (GLM 5.2) segítségét vettem igénybe. A munka menete úgy történt, hogy az architekturális döntéseket, a technológiai stack választását és a specifikus implementációs lépéseket én határoztam meg, az AI pedig a kódolásban, a boilerplate írásában és a hibák azonosításában segített. Minden generált kódot átnéztem, teszteltem, és szükség esetén módosítottam.
 
 ## Nyers prompt history
 
