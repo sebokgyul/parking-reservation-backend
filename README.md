@@ -2,6 +2,14 @@
 
 Java 21 / Spring Boot / JdbcTemplate / PostgreSQL megoldás parkolóhely-foglalások kezelésére.
 
+## Előfeltételek
+
+A teljes rendszer indításához Docker Engine és Docker Compose szükséges; lokális JDK telepítése ehhez nem kell, mert a Docker build Java 21-et használ. A tesztcsomag lokális futtatásához futó Docker Engine és Java 21 szükséges:
+
+```bash
+JAVA_HOME=/path/to/jdk-21 ./mvnw test
+```
+
 ## Indítás
 
 ```bash
