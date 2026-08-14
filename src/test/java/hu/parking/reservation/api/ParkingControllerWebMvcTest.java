@@ -97,6 +97,22 @@ class ParkingControllerWebMvcTest {
     }
 
     @Test
+    void createReservationReturns415ForUnsupportedContentType() throws Exception {
+        mockMvc.perform(post("/reservations")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("not-json"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.message").value("Content-Type must be application/json"));
+    }
+
+    @Test
+    void unsupportedMethodReturns405() throws Exception {
+        mockMvc.perform(post("/parking-spots"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.message").value("HTTP method is not supported for this endpoint"));
+    }
+
+    @Test
     void listReservationsReturns400WhenMissingTimeParams() throws Exception {
         mockMvc.perform(get("/parking-spots/1/reservations"))
                 .andExpect(status().isBadRequest());
