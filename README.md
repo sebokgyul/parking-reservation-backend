@@ -4,10 +4,14 @@ Java 21 / Spring Boot / JdbcTemplate / PostgreSQL megoldás parkolóhely-foglal�
 
 ## Előfeltételek
 
-A teljes rendszer indításához Docker Engine és Docker Compose szükséges; lokális JDK telepítése ehhez nem kell, mert a Docker build Java 21-et használ. A tesztcsomag lokális futtatásához futó Docker Engine és Java 21 szükséges:
+A teljes rendszer indításához futó Docker Engine és Docker Compose v2 (`docker compose`) szükséges. Az első indításkor internetkapcsolat kell a Docker image-ek és a Maven-függőségek letöltéséhez. Lokális JDK vagy Maven telepítése az alkalmazás Dockeres indításához nem szükséges, mert a Docker build Java 21-et használ.
+
+A Maven tesztcsomag futtatásához Java 21 JDK és futó Docker Engine kell: az integrációs tesztek Testcontainers-szel PostgreSQL-konténert indítanak.
 
 ```bash
-JAVA_HOME=/path/to/jdk-21 ./mvnw test
+java --version   # Java 21
+docker info      # a Docker daemon elérhető
+./mvnw test
 ```
 
 ## Indítás
