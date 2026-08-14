@@ -5,6 +5,7 @@ import hu.parking.reservation.api.CreateReservationRequest;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.VehicleType;
+import hu.parking.reservation.repository.ReservationRepository;
 import hu.parking.reservation.service.ReservationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,8 +15,15 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.OffsetDateTime;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,12 +47,15 @@ class ReservationDatabaseIntegrationTest {
     @Autowired
     ReservationService reservationService;
 
+    @Autowired
+    ReservationRepository reservationRepository;
+
     private static final OffsetDateTime T10 = OffsetDateTime.parse("2030-06-10T10:00:00+02:00");
     private static final OffsetDateTime T11 = OffsetDateTime.parse("2030-06-10T11:00:00+02:00");
     private static final OffsetDateTime T12 = OffsetDateTime.parse("2030-06-10T12:00:00+02:00");
 
     @Test
-    void databaseConstraintRejectsOverlappingActiveReservations() {
+    void serviceRejectsSequentialOverlappingReservations() {
         reservationService.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, T10, T11));
 
         ApiException exception = assertThrows(ApiException.class, () ->
@@ -53,6 +64,36 @@ class ReservationDatabaseIntegrationTest {
                         OffsetDateTime.parse("2030-06-10T11:30:00+02:00"))));
 
         assertEquals(409, exception.status().value());
+    }
+
+    @Test
+    void databaseConstraintAllowsOnlyOneConcurrentDirectInsert() throws Exception {
+        OffsetDateTime start = OffsetDateTime.parse("2030-06-10T13:00:00+02:00");
+        OffsetDateTime end = OffsetDateTime.parse("2030-06-10T14:00:00+02:00");
+        CyclicBarrier startBarrier = new CyclicBarrier(2);
+
+        Callable<Boolean> createReservation = () -> {
+            startBarrier.await(5, TimeUnit.SECONDS);
+            try {
+                reservationRepository.create(6L, "Concurrent", VehicleType.ELECTRIC, start, end);
+                return true;
+            } catch (DataIntegrityViolationException exception) {
+                return false;
+            }
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Boolean> first = executor.submit(createReservation);
+            Future<Boolean> second = executor.submit(createReservation);
+
+            int successes = (first.get(10, TimeUnit.SECONDS) ? 1 : 0)
+                    + (second.get(10, TimeUnit.SECONDS) ? 1 : 0);
+
+            assertEquals(1, successes);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
