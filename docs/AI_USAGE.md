@@ -1,7 +1,7 @@
 # AI-eszköz használata
 
-AI-asszisztenst használtam a feladat követelményeinek értelmezéséhez, a konkurenciakezelési és adatbázis-tervezési alternatívák megvitatásához, a tanulási folyamat támogatásához, az implementáció elkészítéséhez, valamint a dokumentáció első változatának elkészítéséhez. Minden választ és döntést átnéztem, különös hangsúllyal az időintervallumok fél-nyílt szemantikájára, a tranzakciókra és a PostgreSQL exclusion constraintra.
+A fejlesztés során AI-asszisztens (Claude) segítségét vettem igénybe. A munka menete úgy történt, hogy az architekturális döntéseket, a technológiai stack választását és a specifikus implementációs lépéseket én határoztam meg, az AI pedig a kódolásban, a boilerplate írásában és a hibák azonosításában segített. Minden generált kódot átnéztem, teszteltem, és szükség esetén módosítottam.
 
-## Kötelező nyers prompt history
+## Nyers prompt history
 
-A beadás előtt a tényleges, nyers AI beszélgetés-exportot a használt felületről ebbe a könyvtárba kell bemásolni `AI_PROMPT_HISTORY_RAW.md` néven. Ez a fájl szándékosan nem helyettesíti a nyers exportot.
+A fejlesztés során használt promptok és az AI válaszainak nyers exportja megtalálható a `docs/AI_PROMPT_HISTORY_RAW.json` fájlban. A beszélgetés során a technikai irányt (pl. PostgreSQL exclusion constraint, JdbcTemplate, félig nyílt intervallumok, Docker multi-stage build) én vezettem, az AI pedig ezeket implementálta.
