@@ -1,11 +1,12 @@
 package hu.parking.reservation;
 
-import hu.parking.reservation.api.ApiException;
 import hu.parking.reservation.api.CreateReservationRequest;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.VehicleType;
 import hu.parking.reservation.repository.ReservationRepository;
+import hu.parking.reservation.service.ConflictException;
+import hu.parking.reservation.service.NotFoundException;
 import hu.parking.reservation.service.ReservationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,12 +59,10 @@ class ReservationDatabaseIntegrationTest {
     void serviceRejectsSequentialOverlappingReservations() {
         reservationService.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, T10, T11));
 
-        ApiException exception = assertThrows(ApiException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 reservationService.create(new CreateReservationRequest(1L, "Bela", VehicleType.STANDARD,
                         OffsetDateTime.parse("2030-06-10T10:30:00+02:00"),
                         OffsetDateTime.parse("2030-06-10T11:30:00+02:00"))));
-
-        assertEquals(409, exception.status().value());
     }
 
     @Test
@@ -117,10 +116,8 @@ class ReservationDatabaseIntegrationTest {
 
     @Test
     void electricSpotRejectsStandardVehicle() {
-        ApiException exception = assertThrows(ApiException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 reservationService.create(new CreateReservationRequest(5L, "Anna", VehicleType.STANDARD, T10, T11)));
-
-        assertEquals(409, exception.status().value());
     }
 
     @Test
@@ -132,10 +129,8 @@ class ReservationDatabaseIntegrationTest {
 
     @Test
     void inactiveSpotRejectsReservation() {
-        ApiException exception = assertThrows(ApiException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 reservationService.create(new CreateReservationRequest(7L, "Anna", VehicleType.STANDARD, T10, T11)));
-
-        assertEquals(409, exception.status().value());
     }
 
     @Test
@@ -153,8 +148,6 @@ class ReservationDatabaseIntegrationTest {
 
     @Test
     void cancelReturns404ForMissingReservation() {
-        ApiException exception = assertThrows(ApiException.class, () -> reservationService.cancel(999999L));
-
-        assertEquals(404, exception.status().value());
+        assertThrows(NotFoundException.class, () -> reservationService.cancel(999999L));
     }
 }

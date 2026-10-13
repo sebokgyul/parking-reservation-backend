@@ -5,12 +5,13 @@ import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.SpotType;
 import hu.parking.reservation.domain.VehicleType;
+import hu.parking.reservation.service.ConflictException;
+import hu.parking.reservation.service.NotFoundException;
 import hu.parking.reservation.service.ReservationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -70,7 +71,7 @@ class ParkingControllerWebMvcTest {
     @Test
     void createReservationReturns409OnConflict() throws Exception {
         when(reservationService.create(any()))
-                .thenThrow(new ApiException(HttpStatus.CONFLICT, "overlap"));
+                .thenThrow(new ConflictException("overlap"));
 
         mockMvc.perform(post("/reservations")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -134,7 +135,7 @@ class ParkingControllerWebMvcTest {
     @Test
     void cancelReservationReturns404ForMissing() throws Exception {
         when(reservationService.cancel(anyLong()))
-                .thenThrow(new ApiException(HttpStatus.NOT_FOUND, "Reservation not found"));
+                .thenThrow(new NotFoundException("Reservation not found"));
 
         mockMvc.perform(post("/reservations/999/cancel"))
                 .andExpect(status().isNotFound())

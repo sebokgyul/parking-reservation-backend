@@ -1,6 +1,5 @@
 package hu.parking.reservation.service;
 
-import hu.parking.reservation.api.ApiException;
 import hu.parking.reservation.api.CreateReservationRequest;
 import hu.parking.reservation.domain.ParkingSpot;
 import hu.parking.reservation.domain.Reservation;
@@ -16,7 +15,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -68,50 +66,44 @@ class ReservationServiceTest {
 
     @Test
     void createRejectsBlankRequesterName() {
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(InvalidRequestException.class, () ->
                 service.create(new CreateReservationRequest(1L, "  ", VehicleType.STANDARD, START, END)));
-        assertEquals(HttpStatus.BAD_REQUEST, ex.status());
     }
 
     @Test
     void createRejectsStartTimeInPast() {
         OffsetDateTime pastStart = OffsetDateTime.parse("2020-01-01T10:00:00+02:00");
         OffsetDateTime pastEnd = OffsetDateTime.parse("2020-01-01T11:00:00+02:00");
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(InvalidRequestException.class, () ->
                 service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, pastStart, pastEnd)));
-        assertEquals(HttpStatus.BAD_REQUEST, ex.status());
     }
 
     @Test
     void createRejectsSecondPrecision() {
         OffsetDateTime startWithSeconds = OffsetDateTime.parse("2030-06-10T10:00:30+02:00");
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(InvalidRequestException.class, () ->
                 service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, startWithSeconds, END)));
-        assertEquals(HttpStatus.BAD_REQUEST, ex.status());
     }
 
     @Test
     void createRejectsNonPositiveRange() {
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(InvalidRequestException.class, () ->
                 service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, START)));
-        assertEquals(HttpStatus.BAD_REQUEST, ex.status());
     }
 
     @Test
     void createRejectsInactiveSpot() {
         when(parkingSpotRepository.findById(7L)).thenReturn(Optional.of(inactiveSpot(7L)));
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 service.create(new CreateReservationRequest(7L, "Anna", VehicleType.STANDARD, START, END)));
-        assertEquals(HttpStatus.CONFLICT, ex.status());
         verify(reservationRepository, never()).create(anyLong(), any(), any(), any(), any());
     }
 
     @Test
     void createRejectsStandardVehicleOnElectricSpot() {
         when(parkingSpotRepository.findById(5L)).thenReturn(Optional.of(electricSpot(5L)));
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 service.create(new CreateReservationRequest(5L, "Anna", VehicleType.STANDARD, START, END)));
-        assertEquals(HttpStatus.CONFLICT, ex.status());
         verify(reservationRepository, never()).create(anyLong(), any(), any(), any(), any());
     }
 
@@ -131,9 +123,8 @@ class ReservationServiceTest {
     void createReturns409OnAppSideOverlap() {
         when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.hasActiveOverlap(1L, START, END)).thenReturn(true);
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, END)));
-        assertEquals(HttpStatus.CONFLICT, ex.status());
         verify(reservationRepository, never()).create(anyLong(), any(), any(), any(), any());
     }
 
@@ -144,24 +135,21 @@ class ReservationServiceTest {
         when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, START, END))
                 .thenThrow(new DataIntegrityViolationException("exclude constraint"));
 
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, END)));
-        assertEquals(HttpStatus.CONFLICT, ex.status());
     }
 
     @Test
     void createRejectsNonExistentSpot() {
         when(parkingSpotRepository.findById(999L)).thenReturn(Optional.empty());
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(NotFoundException.class, () ->
                 service.create(new CreateReservationRequest(999L, "Anna", VehicleType.STANDARD, START, END)));
-        assertEquals(HttpStatus.NOT_FOUND, ex.status());
     }
 
     @Test
     void cancelReturns404WhenReservationMissing() {
         when(reservationRepository.findById(42L)).thenReturn(Optional.empty());
-        ApiException ex = assertThrows(ApiException.class, () -> service.cancel(42L));
-        assertEquals(HttpStatus.NOT_FOUND, ex.status());
+        assertThrows(NotFoundException.class, () -> service.cancel(42L));
     }
 
     @Test
@@ -169,8 +157,7 @@ class ReservationServiceTest {
         Reservation cancelled = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, START, END,
                 ReservationStatus.CANCELLED, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(cancelled));
-        ApiException ex = assertThrows(ApiException.class, () -> service.cancel(1L));
-        assertEquals(HttpStatus.CONFLICT, ex.status());
+        assertThrows(ConflictException.class, () -> service.cancel(1L));
     }
 
     @Test
@@ -179,8 +166,7 @@ class ReservationServiceTest {
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(active));
         when(reservationRepository.cancel(1L)).thenReturn(Optional.empty());
-        ApiException ex = assertThrows(ApiException.class, () -> service.cancel(1L));
-        assertEquals(HttpStatus.CONFLICT, ex.status());
+        assertThrows(ConflictException.class, () -> service.cancel(1L));
     }
 
     @Test
@@ -197,17 +183,15 @@ class ReservationServiceTest {
 
     @Test
     void findReservationsRejectsInvertedRange() {
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(InvalidRequestException.class, () ->
                 service.findReservations(1L, END, START));
-        assertEquals(HttpStatus.BAD_REQUEST, ex.status());
     }
 
     @Test
     void findReservationsRejectsNonExistentSpot() {
         when(parkingSpotRepository.findById(999L)).thenReturn(Optional.empty());
-        ApiException ex = assertThrows(ApiException.class, () ->
+        assertThrows(NotFoundException.class, () ->
                 service.findReservations(999L, START, END));
-        assertEquals(HttpStatus.NOT_FOUND, ex.status());
     }
 
     @Test
