@@ -6,6 +6,8 @@ import hu.parking.reservation.domain.VehicleType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -61,7 +63,7 @@ public class ReservationRepository {
                 """, this::mapReservation, reservationId).stream().findFirst();
     }
 
-    private Reservation mapReservation(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+    private Reservation mapReservation(ResultSet rs, int rowNum) throws SQLException {
         return new Reservation(
                 rs.getLong("id"), rs.getLong("parking_spot_id"), rs.getString("requester_name"),
                 VehicleType.valueOf(rs.getString("vehicle_type")),
@@ -69,4 +71,3 @@ public class ReservationRepository {
                 ReservationStatus.valueOf(rs.getString("status")), rs.getObject("created_at", OffsetDateTime.class));
     }
 }
-

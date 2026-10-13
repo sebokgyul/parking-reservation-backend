@@ -12,7 +12,7 @@ RUN ./mvnw package -DskipTests
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
-COPY --from=builder /workspace/target/parking-reservation-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=builder /workspace/target/*.jar app.jar
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
