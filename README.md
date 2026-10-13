@@ -1,47 +1,43 @@
-# Parkolóhely-foglalás backend
+# parking-reservation-backend
 
-Java 21 / Spring Boot / JdbcTemplate / PostgreSQL megoldás parkolóhely-foglalások kezelésére.
+Small REST API for booking parking spots. Java 21, Spring Boot 3, Postgres, plain JdbcTemplate (no JPA).
 
-## Előfeltételek
+The main thing it has to get right is that two active reservations for the same spot can't overlap. Checking for an overlap in the service and then inserting is racy, so the rule lives in Postgres as an exclusion constraint:
 
-A teljes rendszer indításához futó Docker Engine és Docker Compose v2 (`docker compose`) szükséges. Az első indításkor internetkapcsolat kell a Docker image-ek és a Maven-függőségek letöltéséhez. Lokális JDK vagy Maven telepítése az alkalmazás Dockeres indításához nem szükséges, mert a Docker build Java 21-et használ.
-
-A Maven tesztcsomag futtatásához Java 21 JDK és futó Docker Engine kell: az integrációs tesztek Testcontainers-szel PostgreSQL-konténert indítanak.
-
-```bash
-java --version   # Java 21
-docker info      # a Docker daemon elérhető
-./mvnw test
+```sql
+EXCLUDE USING gist (
+    parking_spot_id WITH =,
+    tstzrange(start_time, end_time, '[)') WITH &&
+) WHERE (status = 'ACTIVE')
 ```
 
-## Indítás
+Ranges are half-open, so 10:00-11:00 and 11:00-12:00 don't clash. Cancelling only flips the status to `CANCELLED`, which keeps the row but frees the slot. The service still runs its own overlap query first so the usual case gets a readable 409. The constraint is what handles two requests arriving at the same time, and `ReservationDatabaseIntegrationTest` fires two inserts in parallel to check that.
+
+Other rules: electric spots only take electric vehicles, inactive spots can't be booked, times are whole minutes and the start can't be in the past.
+
+## Running
 
 ```bash
 docker compose up --build -d
 ```
 
-Az API a `http://localhost:8080` címen érhető el. Indulási logok követése:
+The API listens on `localhost:8080`. Flyway creates the schema and seeds seven spots: `A-01` to `A-04`, the electric `B-01` and `B-02`, and `C-01`, which is inactive. Logs are in `docker compose logs -f backend`, and `docker compose down -v` drops the database volume.
+
+## Tests
+
+Needs JDK 21 and a running Docker daemon, because the integration tests start Postgres with Testcontainers.
 
 ```bash
-docker compose logs -f backend
+./mvnw test
 ```
 
-Leállítás:
+## API
 
-```bash
-docker compose down
+```
+GET  /parking-spots
+POST /reservations
+GET  /parking-spots/{spotId}/reservations?from=...&to=...
+POST /reservations/{reservationId}/cancel
 ```
 
-Az adatbázis teljes törlése szükség esetén:
-
-```bash
-docker compose down -v
-```
-
-## Dokumentáció
-
-- [API-leírás](docs/API.md)
-- [Rendszerterv](docs/SYSTEM_DESIGN.md)
-- [Felhasználói kézikönyv](docs/USER_GUIDE.md)
-- [Döntési napló és reflexió](docs/DECISION_LOG_AND_REFLECTION.md)
-- [AI prompt history](docs/AI_PROMPT_HISTORY_RAW.json)
+Request and response formats and the error codes are in [docs/API.md](docs/API.md).

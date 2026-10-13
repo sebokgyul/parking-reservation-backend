@@ -1,24 +1,16 @@
-# API-leírás
+# API
 
-Az üzleti API JSON-t használ. A `POST /reservations` kéréshez `Content-Type: application/json` szükséges. Az időpontok ISO-8601 formátumú, offsetet tartalmazó értékek, például `2030-06-10T10:00:00+02:00`; másodperc és nanoszekundum nem adható meg.
+JSON in and out. Timestamps are ISO-8601 with an offset, e.g. `2030-06-10T10:00:00+02:00`, and have to be whole minutes (no seconds or fractions).
 
-## Adattípusok
-
-### Parkolóhely
+## Parking spot
 
 ```json
-{
-  "id": 1,
-  "code": "A-01",
-  "spotType": "NORMAL",
-  "active": true
-}
+{ "id": 1, "code": "A-01", "spotType": "NORMAL", "active": true }
 ```
 
-- `spotType`: `NORMAL` vagy `ELECTRIC`.
-- `active`: `false` helyre új foglalás nem hozható létre.
+`spotType` is `NORMAL` or `ELECTRIC`. Inactive spots can't be booked.
 
-### Foglalás
+## Reservation
 
 ```json
 {
@@ -33,18 +25,15 @@ Az üzleti API JSON-t használ. A `POST /reservations` kéréshez `Content-Type:
 }
 ```
 
-- `vehicleType`: `STANDARD` vagy `ELECTRIC`.
-- `status`: `ACTIVE` vagy `CANCELLED`.
+`vehicleType` is `STANDARD` or `ELECTRIC`, `status` is `ACTIVE` or `CANCELLED`.
 
-## `GET /parking-spots`
+## GET /parking-spots
 
-Az összes tárolt parkolóhelyet adja vissza kód szerint rendezve, az inaktívakat is beleértve.
+All spots ordered by code, inactive ones included. Returns `200`.
 
-- Siker: `200 OK`, a válasz Parkolóhelyek JSON tömbje.
+## POST /reservations
 
-## `POST /reservations`
-
-Új foglalást hoz létre. Minta kérés:
+Needs `Content-Type: application/json`.
 
 ```json
 {
@@ -56,40 +45,32 @@ Az összes tárolt parkolóhelyet adja vissza kód szerint rendezve, az inaktív
 }
 ```
 
-Minden mező kötelező. A `requesterName` a tárolás előtt trimelődik, nem lehet üres, és legfeljebb 100 karakter lehet. `startTime`-nak `endTime` előtt kell lennie, nem lehet múltbeli, és mindkét értéknek perc-pontosságúnak kell lennie.
+Every field is required. `requesterName` is trimmed and must be 1-100 characters. `startTime` must be before `endTime` and not in the past.
 
-Szabályok:
+- `201` with the created reservation
+- `400` missing or invalid field
+- `404` spot doesn't exist
+- `409` spot is inactive, a standard vehicle on an electric spot, or the time overlaps an active reservation. Overlap is checked on `[startTime, endTime)`, so back-to-back bookings are fine.
 
-- csak aktív hely foglalható;
-- `ELECTRIC` helyhez csak `ELECTRIC` jármű foglalhat;
-- az aktív foglalások félig nyílt intervallumai `[startTime, endTime)` nem fedhetik át egymást ugyanazon a helyen.
+## GET /parking-spots/{spotId}/reservations?from=...&to=...
 
-- Siker: `201 Created`, a létrehozott Foglalás JSON objektuma.
-- Hiba: `400 Bad Request` hibás vagy hiányzó értéknél; `404 Not Found`, ha a hely nem létezik; `409 Conflict` inaktív hely, nem megfelelő járműtípus vagy átfedés esetén.
+Active reservations on the spot that overlap the window (`startTime < to` and `endTime > from`), ordered by start time. `from` and `to` are required, same format as above, and `from` has to be before `to`.
 
-## `GET /parking-spots/{spotId}/reservations?from=...&to=...`
+- `200` with an array, possibly empty
+- `400` missing, malformed or inverted window
+- `404` spot doesn't exist
 
-Az adott hely azon aktív foglalásait adja vissza kezdési idő szerint rendezve, amelyek átfednek a kért intervallummal: `startTime < to` és `endTime > from`.
+## POST /reservations/{reservationId}/cancel
 
-- `spotId`: a parkolóhely azonosítója.
-- `from` és `to`: kötelező, offsetes ISO-8601 időpontok, perc-pontossággal; `from < to` kell teljesüljön.
-- Siker: `200 OK`, Foglalások JSON tömbje. Üres tömb érvényes válasz.
-- Hiba: `400 Bad Request` hiányzó, hibás vagy nem növekvő időablaknál; `404 Not Found`, ha a hely nem létezik.
+No body. Sets the reservation to `CANCELLED`.
 
-## `POST /reservations/{reservationId}/cancel`
+- `200` with the cancelled reservation
+- `404` no such reservation
+- `409` already cancelled. This is also what the losing request gets when two cancels race.
 
-Aktív foglalást mond le. Nincs kérés törzs.
+## Errors
 
-- Siker: `200 OK`, a `CANCELLED` állapotú Foglalás JSON objektuma.
-- Hiba: `404 Not Found`, ha nincs ilyen foglalás; `409 Conflict`, ha a foglalás már le van mondva, vagy egy párhuzamos lemondás már végrehajtotta a módosítást.
-
-## Üzemeltetési végpont
-
-`GET /actuator/health` az alkalmazás health státuszát adja vissza, például `{"status":"UP"}`. Ez nem üzleti végpont.
-
-## Hibaválasz
-
-Minden kezelt hiba egységes formátumú:
+Every handled error has the same shape:
 
 ```json
 {
@@ -101,4 +82,6 @@ Minden kezelt hiba egységes formátumú:
 }
 ```
 
-A nem támogatott HTTP-metódus `405 Method Not Allowed`, a `POST /reservations` nem JSON médiatípusa `415 Unsupported Media Type` választ ad.
+A wrong HTTP method gives `405`, and a non-JSON body on `POST /reservations` gives `415`.
+
+`GET /actuator/health` is exposed as well, for health checks.

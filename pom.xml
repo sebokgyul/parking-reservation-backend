@@ -15,7 +15,7 @@
     <artifactId>parking-reservation</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>parking-reservation</name>
-    <description>Parking reservation backend take-home assignment</description>
+    <description>Parking spot reservation REST API</description>
 
     <properties>
         <java.version>21</java.version>
