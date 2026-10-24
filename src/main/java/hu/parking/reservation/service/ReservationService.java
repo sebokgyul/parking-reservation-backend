@@ -8,7 +8,6 @@ import hu.parking.reservation.domain.SpotType;
 import hu.parking.reservation.domain.VehicleType;
 import hu.parking.reservation.repository.ParkingSpotRepository;
 import hu.parking.reservation.repository.ReservationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,12 +22,7 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final Clock clock;
 
-    @Autowired
-    public ReservationService(ParkingSpotRepository parkingSpotRepository, ReservationRepository reservationRepository) {
-        this(parkingSpotRepository, reservationRepository, Clock.systemUTC());
-    }
-
-    ReservationService(ParkingSpotRepository parkingSpotRepository, ReservationRepository reservationRepository, Clock clock) {
+    public ReservationService(ParkingSpotRepository parkingSpotRepository, ReservationRepository reservationRepository, Clock clock) {
         this.parkingSpotRepository = parkingSpotRepository;
         this.reservationRepository = reservationRepository;
         this.clock = clock;

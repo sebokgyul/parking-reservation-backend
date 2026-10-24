@@ -8,9 +8,14 @@ import hu.parking.reservation.repository.ReservationRepository;
 import hu.parking.reservation.service.ConflictException;
 import hu.parking.reservation.service.NotFoundException;
 import hu.parking.reservation.service.ReservationService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -18,7 +23,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -45,15 +53,32 @@ class ReservationDatabaseIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
     }
 
+    @TestConfiguration
+    static class FixedClockConfig {
+        @Bean
+        @Primary
+        Clock fixedClock() {
+            return Clock.fixed(Instant.parse("2030-06-01T00:00:00Z"), ZoneOffset.UTC);
+        }
+    }
+
     @Autowired
     ReservationService reservationService;
 
     @Autowired
     ReservationRepository reservationRepository;
 
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
     private static final OffsetDateTime T10 = OffsetDateTime.parse("2030-06-10T10:00:00+02:00");
     private static final OffsetDateTime T11 = OffsetDateTime.parse("2030-06-10T11:00:00+02:00");
     private static final OffsetDateTime T12 = OffsetDateTime.parse("2030-06-10T12:00:00+02:00");
+
+    @BeforeEach
+    void cleanUp() {
+        jdbcTemplate.update("DELETE FROM reservations");
+    }
 
     @Test
     void serviceRejectsSequentialOverlappingReservations() {
