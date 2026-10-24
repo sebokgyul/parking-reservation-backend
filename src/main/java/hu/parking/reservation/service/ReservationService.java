@@ -1,6 +1,5 @@
 package hu.parking.reservation.service;
 
-import hu.parking.reservation.api.CreateReservationRequest;
 import hu.parking.reservation.domain.ParkingSpot;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
@@ -40,7 +39,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation create(CreateReservationRequest request) {
+    public Reservation create(NewReservation request) {
         validateRequest(request);
         ParkingSpot spot = requireSpot(request.parkingSpotId());
         if (!spot.active()) {
@@ -72,7 +71,7 @@ public class ReservationService {
                 .orElseThrow(() -> new NotFoundException("Parking spot not found"));
     }
 
-    private void validateRequest(CreateReservationRequest request) {
+    private void validateRequest(NewReservation request) {
         validateTimeRange(request.startTime(), request.endTime(), "startTime must be before endTime");
         if (request.startTime().toInstant().isBefore(clock.instant())) {
             throw new InvalidRequestException("startTime must not be in the past");

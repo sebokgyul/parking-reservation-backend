@@ -2,6 +2,7 @@ package hu.parking.reservation.api;
 
 import hu.parking.reservation.domain.ParkingSpot;
 import hu.parking.reservation.domain.Reservation;
+import hu.parking.reservation.service.NewReservation;
 import hu.parking.reservation.service.ReservationService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -40,7 +41,9 @@ public class ParkingController {
 
     @PostMapping("/reservations")
     public ResponseEntity<Reservation> createReservation(@Valid @RequestBody CreateReservationRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(reservationService.create(request));
+        NewReservation newReservation = new NewReservation(request.parkingSpotId(), request.requesterName(),
+                request.vehicleType(), request.startTime(), request.endTime());
+        return ResponseEntity.status(HttpStatus.CREATED).body(reservationService.create(newReservation));
     }
 
     @PostMapping("/reservations/{reservationId}/cancel")

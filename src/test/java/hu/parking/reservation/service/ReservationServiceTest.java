@@ -1,6 +1,5 @@
 package hu.parking.reservation.service;
 
-import hu.parking.reservation.api.CreateReservationRequest;
 import hu.parking.reservation.domain.ParkingSpot;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
@@ -68,27 +67,27 @@ class ReservationServiceTest {
         OffsetDateTime pastStart = OffsetDateTime.parse("2020-01-01T10:00:00+02:00");
         OffsetDateTime pastEnd = OffsetDateTime.parse("2020-01-01T11:00:00+02:00");
         assertThrows(InvalidRequestException.class, () ->
-                service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, pastStart, pastEnd)));
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, pastStart, pastEnd)));
     }
 
     @Test
     void createRejectsSecondPrecision() {
         OffsetDateTime startWithSeconds = OffsetDateTime.parse("2030-06-10T10:00:30+02:00");
         assertThrows(InvalidRequestException.class, () ->
-                service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, startWithSeconds, END)));
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, startWithSeconds, END)));
     }
 
     @Test
     void createRejectsNonPositiveRange() {
         assertThrows(InvalidRequestException.class, () ->
-                service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, START)));
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, START, START)));
     }
 
     @Test
     void createRejectsInactiveSpot() {
         when(parkingSpotRepository.findById(7L)).thenReturn(Optional.of(inactiveSpot(7L)));
         assertThrows(ConflictException.class, () ->
-                service.create(new CreateReservationRequest(7L, "Anna", VehicleType.STANDARD, START, END)));
+                service.create(new NewReservation(7L, "Anna", VehicleType.STANDARD, START, END)));
         verify(reservationRepository, never()).create(anyLong(), any(), any(), any(), any());
     }
 
@@ -96,7 +95,7 @@ class ReservationServiceTest {
     void createRejectsStandardVehicleOnElectricSpot() {
         when(parkingSpotRepository.findById(5L)).thenReturn(Optional.of(electricSpot(5L)));
         assertThrows(ConflictException.class, () ->
-                service.create(new CreateReservationRequest(5L, "Anna", VehicleType.STANDARD, START, END)));
+                service.create(new NewReservation(5L, "Anna", VehicleType.STANDARD, START, END)));
         verify(reservationRepository, never()).create(anyLong(), any(), any(), any(), any());
     }
 
@@ -108,7 +107,7 @@ class ReservationServiceTest {
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
         when(reservationRepository.create(5L, "Anna", VehicleType.ELECTRIC, START, END)).thenReturn(Optional.of(created));
 
-        Reservation result = service.create(new CreateReservationRequest(5L, " Anna ", VehicleType.ELECTRIC, START, END));
+        Reservation result = service.create(new NewReservation(5L, " Anna ", VehicleType.ELECTRIC, START, END));
         assertEquals(created, result);
     }
 
@@ -117,7 +116,7 @@ class ReservationServiceTest {
         when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.hasActiveOverlap(1L, START, END)).thenReturn(true);
         assertThrows(ConflictException.class, () ->
-                service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, END)));
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, START, END)));
         verify(reservationRepository, never()).create(anyLong(), any(), any(), any(), any());
     }
 
@@ -128,7 +127,7 @@ class ReservationServiceTest {
         when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, START, END)).thenReturn(Optional.empty());
 
         assertThrows(ConflictException.class, () ->
-                service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, END)));
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, START, END)));
     }
 
     @Test
@@ -139,14 +138,14 @@ class ReservationServiceTest {
                 .thenThrow(new DataIntegrityViolationException("invalid byte sequence"));
 
         assertThrows(DataIntegrityViolationException.class, () ->
-                service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, END)));
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, START, END)));
     }
 
     @Test
     void createRejectsNonExistentSpot() {
         when(parkingSpotRepository.findById(999L)).thenReturn(Optional.empty());
         assertThrows(NotFoundException.class, () ->
-                service.create(new CreateReservationRequest(999L, "Anna", VehicleType.STANDARD, START, END)));
+                service.create(new NewReservation(999L, "Anna", VehicleType.STANDARD, START, END)));
     }
 
     @Test

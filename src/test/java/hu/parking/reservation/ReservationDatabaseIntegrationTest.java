@@ -1,11 +1,11 @@
 package hu.parking.reservation;
 
-import hu.parking.reservation.api.CreateReservationRequest;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.VehicleType;
 import hu.parking.reservation.repository.ReservationRepository;
 import hu.parking.reservation.service.ConflictException;
+import hu.parking.reservation.service.NewReservation;
 import hu.parking.reservation.service.NotFoundException;
 import hu.parking.reservation.service.ReservationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,10 +86,10 @@ class ReservationDatabaseIntegrationTest {
 
     @Test
     void serviceRejectsSequentialOverlappingReservations() {
-        reservationService.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, T10, T11));
+        reservationService.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, T10, T11));
 
         assertThrows(ConflictException.class, () ->
-                reservationService.create(new CreateReservationRequest(1L, "Bela", VehicleType.STANDARD,
+                reservationService.create(new NewReservation(1L, "Bela", VehicleType.STANDARD,
                         OffsetDateTime.parse("2030-06-10T10:30:00+02:00"),
                         OffsetDateTime.parse("2030-06-10T11:30:00+02:00"))));
     }
@@ -130,7 +130,7 @@ class ReservationDatabaseIntegrationTest {
 
         Callable<Boolean> createReservation = () -> {
             try {
-                reservationService.create(new CreateReservationRequest(1L, "Racer", VehicleType.STANDARD, T10, T11));
+                reservationService.create(new NewReservation(1L, "Racer", VehicleType.STANDARD, T10, T11));
                 return true;
             } catch (ConflictException exception) {
                 return false;
@@ -154,24 +154,24 @@ class ReservationDatabaseIntegrationTest {
     @Test
     void otherIntegrityErrorIsNotReportedAsConflict() {
         assertThrows(DataIntegrityViolationException.class, () ->
-                reservationService.create(new CreateReservationRequest(1L, "An\u0000na", VehicleType.STANDARD, T10, T11)));
+                reservationService.create(new NewReservation(1L, "An\u0000na", VehicleType.STANDARD, T10, T11)));
     }
 
     @Test
     void adjacentReservationsDoNotOverlap() {
-        reservationService.create(new CreateReservationRequest(2L, "Anna", VehicleType.STANDARD, T10, T11));
+        reservationService.create(new NewReservation(2L, "Anna", VehicleType.STANDARD, T10, T11));
 
-        Reservation second = reservationService.create(new CreateReservationRequest(2L, "Bela", VehicleType.STANDARD, T11, T12));
+        Reservation second = reservationService.create(new NewReservation(2L, "Bela", VehicleType.STANDARD, T11, T12));
 
         assertEquals(ReservationStatus.ACTIVE, second.status());
     }
 
     @Test
     void cancelledReservationFreesUpTheSlot() {
-        Reservation first = reservationService.create(new CreateReservationRequest(3L, "Anna", VehicleType.STANDARD, T10, T11));
+        Reservation first = reservationService.create(new NewReservation(3L, "Anna", VehicleType.STANDARD, T10, T11));
         reservationService.cancel(first.id());
 
-        Reservation rebooked = reservationService.create(new CreateReservationRequest(3L, "Bela", VehicleType.STANDARD, T10, T11));
+        Reservation rebooked = reservationService.create(new NewReservation(3L, "Bela", VehicleType.STANDARD, T10, T11));
 
         assertEquals(ReservationStatus.ACTIVE, rebooked.status());
     }
@@ -179,12 +179,12 @@ class ReservationDatabaseIntegrationTest {
     @Test
     void electricSpotRejectsStandardVehicle() {
         assertThrows(ConflictException.class, () ->
-                reservationService.create(new CreateReservationRequest(5L, "Anna", VehicleType.STANDARD, T10, T11)));
+                reservationService.create(new NewReservation(5L, "Anna", VehicleType.STANDARD, T10, T11)));
     }
 
     @Test
     void electricSpotAcceptsElectricVehicle() {
-        Reservation reservation = reservationService.create(new CreateReservationRequest(6L, "Anna", VehicleType.ELECTRIC, T10, T11));
+        Reservation reservation = reservationService.create(new NewReservation(6L, "Anna", VehicleType.ELECTRIC, T10, T11));
 
         assertEquals(ReservationStatus.ACTIVE, reservation.status());
     }
@@ -192,14 +192,14 @@ class ReservationDatabaseIntegrationTest {
     @Test
     void inactiveSpotRejectsReservation() {
         assertThrows(ConflictException.class, () ->
-                reservationService.create(new CreateReservationRequest(7L, "Anna", VehicleType.STANDARD, T10, T11)));
+                reservationService.create(new NewReservation(7L, "Anna", VehicleType.STANDARD, T10, T11)));
     }
 
     @Test
     void findReservationsReturnsOnlyActiveOverlappingOnes() {
-        Reservation r1 = reservationService.create(new CreateReservationRequest(4L, "Anna", VehicleType.STANDARD, T10, T11));
+        Reservation r1 = reservationService.create(new NewReservation(4L, "Anna", VehicleType.STANDARD, T10, T11));
         reservationService.cancel(r1.id());
-        reservationService.create(new CreateReservationRequest(4L, "Bela", VehicleType.STANDARD, T11, T12));
+        reservationService.create(new NewReservation(4L, "Bela", VehicleType.STANDARD, T11, T12));
 
         List<Reservation> result = reservationService.findReservations(4L, T10, T12);
 
