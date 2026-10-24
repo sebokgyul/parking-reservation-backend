@@ -92,7 +92,7 @@ class ReservationServiceTest {
     @Test
     void createAllowsExactly24Hours() {
         OffsetDateTime end = START.plusHours(24);
-        when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
+        when(parkingSpotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.hasActiveOverlap(1L, START, end)).thenReturn(false);
         Reservation created = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, START, end,
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
@@ -117,7 +117,7 @@ class ReservationServiceTest {
 
     @Test
     void createRejectsInactiveSpot() {
-        when(parkingSpotRepository.findById(7L)).thenReturn(Optional.of(inactiveSpot(7L)));
+        when(parkingSpotRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inactiveSpot(7L)));
         assertThrows(ConflictException.class, () ->
                 service.create(new NewReservation(7L, "Anna", VehicleType.STANDARD, START, END)));
         verify(reservationRepository, never()).create(anyLong(), any(), any(), any(), any());
@@ -125,7 +125,7 @@ class ReservationServiceTest {
 
     @Test
     void createRejectsStandardVehicleOnElectricSpot() {
-        when(parkingSpotRepository.findById(5L)).thenReturn(Optional.of(electricSpot(5L)));
+        when(parkingSpotRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(electricSpot(5L)));
         assertThrows(ConflictException.class, () ->
                 service.create(new NewReservation(5L, "Anna", VehicleType.STANDARD, START, END)));
         verify(reservationRepository, never()).create(anyLong(), any(), any(), any(), any());
@@ -133,7 +133,7 @@ class ReservationServiceTest {
 
     @Test
     void createAllowsElectricVehicleOnElectricSpot() {
-        when(parkingSpotRepository.findById(5L)).thenReturn(Optional.of(electricSpot(5L)));
+        when(parkingSpotRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(electricSpot(5L)));
         when(reservationRepository.hasActiveOverlap(5L, START, END)).thenReturn(false);
         Reservation created = new Reservation(ID, 5L, "Anna", VehicleType.ELECTRIC, START, END,
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
@@ -145,7 +145,7 @@ class ReservationServiceTest {
 
     @Test
     void createReturns409OnAppSideOverlap() {
-        when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
+        when(parkingSpotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.hasActiveOverlap(1L, START, END)).thenReturn(true);
         assertThrows(ConflictException.class, () ->
                 service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, START, END)));
@@ -154,7 +154,7 @@ class ReservationServiceTest {
 
     @Test
     void createReturns409WhenOverlapConstraintRejectsInsert() {
-        when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
+        when(parkingSpotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.hasActiveOverlap(1L, START, END)).thenReturn(false);
         when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, START, END)).thenReturn(Optional.empty());
 
@@ -164,7 +164,7 @@ class ReservationServiceTest {
 
     @Test
     void createPassesOtherIntegrityErrorsThrough() {
-        when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
+        when(parkingSpotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.hasActiveOverlap(1L, START, END)).thenReturn(false);
         when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, START, END))
                 .thenThrow(new DataIntegrityViolationException("invalid byte sequence"));
@@ -175,7 +175,7 @@ class ReservationServiceTest {
 
     @Test
     void createRejectsNonExistentSpot() {
-        when(parkingSpotRepository.findById(999L)).thenReturn(Optional.empty());
+        when(parkingSpotRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
         assertThrows(NotFoundException.class, () ->
                 service.create(new NewReservation(999L, "Anna", VehicleType.STANDARD, START, END)));
     }

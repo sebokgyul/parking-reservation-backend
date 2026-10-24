@@ -16,35 +16,31 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest
 @Testcontainers
@@ -71,7 +67,7 @@ class ReservationDatabaseIntegrationTest {
     @Autowired
     ReservationService reservationService;
 
-    @MockitoSpyBean
+    @Autowired
     ReservationRepository reservationRepository;
 
     @Autowired
@@ -97,59 +93,40 @@ class ReservationDatabaseIntegrationTest {
     }
 
     @Test
-    void databaseConstraintAllowsOnlyOneConcurrentDirectInsert() throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            for (int round = 0; round < 5; round++) {
-                OffsetDateTime start = OffsetDateTime.parse("2030-06-10T13:00:00+02:00").plusHours(round);
-                OffsetDateTime end = start.plusHours(1);
-                CyclicBarrier startBarrier = new CyclicBarrier(2);
+    void databaseConstraintRejectsOverlapThatSkipsTheServiceCheck() {
+        reservationRepository.create(6L, "Anna", VehicleType.ELECTRIC, T10, T11);
 
-                Callable<Boolean> createReservation = () -> {
-                    startBarrier.await(5, TimeUnit.SECONDS);
-                    return reservationRepository.create(6L, "Concurrent", VehicleType.ELECTRIC, start, end).isPresent();
-                };
-
-                Future<Boolean> first = executor.submit(createReservation);
-                Future<Boolean> second = executor.submit(createReservation);
-
-                int successes = (first.get(10, TimeUnit.SECONDS) ? 1 : 0)
-                        + (second.get(10, TimeUnit.SECONDS) ? 1 : 0);
-
-                assertEquals(1, successes);
-            }
-        } finally {
-            executor.shutdownNow();
-        }
+        assertTrue(reservationRepository.create(6L, "Bela", VehicleType.ELECTRIC,
+                OffsetDateTime.parse("2030-06-10T10:30:00+02:00"),
+                OffsetDateTime.parse("2030-06-10T11:30:00+02:00")).isEmpty());
     }
 
     @Test
-    void serviceReturnsConflictWhenBothRequestsPassTheOverlapCheck() throws Exception {
-        CyclicBarrier afterCheck = new CyclicBarrier(2);
-        doAnswer(invocation -> {
-            Object result = invocation.callRealMethod();
-            afterCheck.await(5, TimeUnit.SECONDS);
-            return result;
-        }).when(reservationRepository).hasActiveOverlap(anyLong(), any(), any());
-
-        Callable<Boolean> createReservation = () -> {
-            try {
-                reservationService.create(new NewReservation(1L, "Racer", VehicleType.STANDARD, T10, T11));
-                return true;
-            } catch (ConflictException exception) {
-                return false;
-            }
-        };
-
-        ExecutorService executor = Executors.newFixedThreadPool(2);
+    void concurrentRequestsForTheSameSlotGetOneReservation() throws Exception {
+        int requests = 5;
+        ExecutorService executor = Executors.newFixedThreadPool(requests);
         try {
-            Future<Boolean> first = executor.submit(createReservation);
-            Future<Boolean> second = executor.submit(createReservation);
+            for (int round = 0; round < 5; round++) {
+                OffsetDateTime start = T10.plusHours(round);
+                CyclicBarrier startBarrier = new CyclicBarrier(requests);
 
-            int successes = (first.get(10, TimeUnit.SECONDS) ? 1 : 0)
-                    + (second.get(10, TimeUnit.SECONDS) ? 1 : 0);
+                Callable<Boolean> createReservation = () -> {
+                    startBarrier.await(5, TimeUnit.SECONDS);
+                    try {
+                        reservationService.create(new NewReservation(1L, "Racer", VehicleType.STANDARD, start, start.plusHours(1)));
+                        return true;
+                    } catch (ConflictException exception) {
+                        return false;
+                    }
+                };
 
-            assertEquals(1, successes);
+                int successes = 0;
+                for (Future<Boolean> result : executor.invokeAll(Collections.nCopies(requests, createReservation), 10, TimeUnit.SECONDS)) {
+                    successes += result.get() ? 1 : 0;
+                }
+
+                assertEquals(1, successes);
+            }
         } finally {
             executor.shutdownNow();
         }

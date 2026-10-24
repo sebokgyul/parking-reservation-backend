@@ -21,6 +21,7 @@ import java.util.UUID;
 @Service
 public class ReservationService {
     private static final String OVERLAP_MESSAGE = "Parking spot is already reserved for the requested time interval";
+    private static final String SPOT_NOT_FOUND = "Parking spot not found";
     private static final Duration MAX_DURATION = Duration.ofHours(24);
     private static final Duration MAX_ADVANCE = Duration.ofDays(90);
 
@@ -54,7 +55,8 @@ public class ReservationService {
     @Transactional
     public Reservation create(NewReservation request) {
         validateRequest(request);
-        ParkingSpot spot = requireSpot(request.parkingSpotId());
+        ParkingSpot spot = parkingSpotRepository.findByIdForUpdate(request.parkingSpotId())
+                .orElseThrow(() -> new NotFoundException(SPOT_NOT_FOUND));
         if (!spot.active()) {
             throw new ConflictException("Parking spot is inactive");
         }
@@ -83,7 +85,7 @@ public class ReservationService {
 
     private ParkingSpot requireSpot(long spotId) {
         return parkingSpotRepository.findById(spotId)
-                .orElseThrow(() -> new NotFoundException("Parking spot not found"));
+                .orElseThrow(() -> new NotFoundException(SPOT_NOT_FOUND));
     }
 
     private Reservation requireReservation(UUID reservationId) {

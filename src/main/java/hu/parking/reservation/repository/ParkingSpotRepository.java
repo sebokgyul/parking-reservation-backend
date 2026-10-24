@@ -27,6 +27,11 @@ public class ParkingSpotRepository {
                 .stream().findFirst();
     }
 
+    public Optional<ParkingSpot> findByIdForUpdate(long id) {
+        return jdbcTemplate.query("SELECT id, code, spot_type, is_active FROM parking_spots WHERE id = ? FOR UPDATE", this::mapSpot, id)
+                .stream().findFirst();
+    }
+
     private ParkingSpot mapSpot(ResultSet rs, int rowNum) throws SQLException {
         return new ParkingSpot(rs.getLong("id"), rs.getString("code"), SpotType.valueOf(rs.getString("spot_type")), rs.getBoolean("is_active"));
     }

@@ -11,7 +11,7 @@ EXCLUDE USING gist (
 ) WHERE (status = 'ACTIVE')
 ```
 
-Ranges are half-open, so 10:00-11:00 and 11:00-12:00 don't clash. Cancelling only flips the status to `CANCELLED`, which keeps the row but frees the slot. The service still runs its own overlap query first so the usual case gets a readable 409. The constraint is what handles two requests arriving at the same time, and `ReservationDatabaseIntegrationTest` fires two inserts in parallel to check that.
+Ranges are half-open, so 10:00-11:00 and 11:00-12:00 don't clash. Cancelling only flips the status to `CANCELLED`, which keeps the row but frees the slot. The service still runs its own overlap query first so the usual case gets a readable 409. Before that query it locks the spot row with `SELECT ... FOR UPDATE`, so bookings for the same spot run one after another and the query sees every committed reservation. Without the lock, two overlapping inserts can deadlock inside the constraint check, and Postgres takes a second to notice. The constraint still catches anything that bypasses the service, and `ReservationDatabaseIntegrationTest` sends parallel requests for the same slot to check that exactly one wins.
 
 Other rules: electric spots only take electric vehicles, inactive spots can't be booked, times are whole minutes, the start can't be in the past or more than 90 days ahead, a reservation is at most 24 hours long, and one that has already ended can't be cancelled.
 
