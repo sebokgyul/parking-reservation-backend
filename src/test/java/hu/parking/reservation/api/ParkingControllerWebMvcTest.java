@@ -9,8 +9,11 @@ import hu.parking.reservation.service.ConflictException;
 import hu.parking.reservation.service.NotFoundException;
 import hu.parking.reservation.service.ReservationService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
@@ -27,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ParkingController.class)
+@ExtendWith(OutputCaptureExtension.class)
 class ParkingControllerWebMvcTest {
 
     @Autowired
@@ -140,5 +145,30 @@ class ParkingControllerWebMvcTest {
         mockMvc.perform(post("/reservations/999/cancel"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Reservation not found"));
+    }
+
+    @Test
+    void unknownPathReturns404() throws Exception {
+        mockMvc.perform(get("/does-not-exist"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Resource not found"))
+                .andExpect(jsonPath("$.path").value("/does-not-exist"));
+    }
+
+    @Test
+    void unexpectedErrorReturns500AndIsLogged(CapturedOutput output) throws Exception {
+        when(reservationService.listParkingSpots()).thenThrow(new IllegalStateException("boom"));
+
+        mockMvc.perform(get("/parking-spots"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("Unexpected server error"));
+
+        assertTrue(output.getAll().contains("Unhandled exception on GET /parking-spots"));
+    }
+
+    @Test
+    void unsupportedAcceptTypeReturns406() throws Exception {
+        mockMvc.perform(get("/parking-spots").accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable());
     }
 }
