@@ -33,7 +33,7 @@ All spots ordered by code, inactive ones included. Returns `200`.
 
 ## POST /reservations
 
-Needs `Content-Type: application/json`.
+Needs `Content-Type: application/json`. The dates below only show the format, a real request has to start within the next 90 days.
 
 ```json
 {
