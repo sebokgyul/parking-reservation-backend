@@ -8,7 +8,6 @@ import hu.parking.reservation.domain.SpotType;
 import hu.parking.reservation.domain.VehicleType;
 import hu.parking.reservation.repository.ParkingSpotRepository;
 import hu.parking.reservation.repository.ReservationRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +17,8 @@ import java.util.List;
 
 @Service
 public class ReservationService {
+    private static final String OVERLAP_MESSAGE = "Parking spot is already reserved for the requested time interval";
+
     private final ParkingSpotRepository parkingSpotRepository;
     private final ReservationRepository reservationRepository;
     private final Clock clock;
@@ -49,13 +50,10 @@ public class ReservationService {
             throw new ConflictException("Electric parking spots require an electric vehicle");
         }
         if (reservationRepository.hasActiveOverlap(request.parkingSpotId(), request.startTime(), request.endTime())) {
-            throw new ConflictException("Parking spot is already reserved for the requested time interval");
+            throw new ConflictException(OVERLAP_MESSAGE);
         }
-        try {
-            return reservationRepository.create(request.parkingSpotId(), request.requesterName().trim(), request.vehicleType(), request.startTime(), request.endTime());
-        } catch (DataIntegrityViolationException exception) {
-            throw new ConflictException("Parking spot is already reserved for the requested time interval");
-        }
+        return reservationRepository.create(request.parkingSpotId(), request.requesterName().trim(), request.vehicleType(), request.startTime(), request.endTime())
+                .orElseThrow(() -> new ConflictException(OVERLAP_MESSAGE));
     }
 
     @Transactional

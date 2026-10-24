@@ -3,6 +3,7 @@ package hu.parking.reservation.repository;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.VehicleType;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -29,13 +30,21 @@ public class ReservationRepository {
         return count != null && count > 0;
     }
 
-    public Reservation create(long parkingSpotId, String requesterName, VehicleType vehicleType,
-                              OffsetDateTime startTime, OffsetDateTime endTime) {
-        return jdbcTemplate.queryForObject("""
-                INSERT INTO reservations (parking_spot_id, requester_name, vehicle_type, start_time, end_time)
-                VALUES (?, ?, ?, ?, ?)
-                RETURNING id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
-                """, this::mapReservation, parkingSpotId, requesterName, vehicleType.name(), startTime, endTime);
+    public Optional<Reservation> create(long parkingSpotId, String requesterName, VehicleType vehicleType,
+                                        OffsetDateTime startTime, OffsetDateTime endTime) {
+        try {
+            return jdbcTemplate.query("""
+                    INSERT INTO reservations (parking_spot_id, requester_name, vehicle_type, start_time, end_time)
+                    VALUES (?, ?, ?, ?, ?)
+                    RETURNING id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
+                    """, this::mapReservation, parkingSpotId, requesterName, vehicleType.name(), startTime, endTime)
+                    .stream().findFirst();
+        } catch (DataIntegrityViolationException exception) {
+            if (isOverlapViolation(exception)) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
     }
 
     public List<Reservation> findActiveOverlapping(long parkingSpotId, OffsetDateTime from, OffsetDateTime to) {
@@ -61,6 +70,12 @@ public class ReservationRepository {
                 WHERE id = ? AND status = 'ACTIVE'
                 RETURNING id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
                 """, this::mapReservation, reservationId).stream().findFirst();
+    }
+
+    private static boolean isOverlapViolation(DataIntegrityViolationException exception) {
+        return exception.getMostSpecificCause() instanceof SQLException sql
+                && "23P01".equals(sql.getSQLState())
+                && String.valueOf(sql.getMessage()).contains("reservations_no_active_time_overlap");
     }
 
     private Reservation mapReservation(ResultSet rs, int rowNum) throws SQLException {

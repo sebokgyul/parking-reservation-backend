@@ -112,7 +112,7 @@ class ReservationServiceTest {
         when(reservationRepository.hasActiveOverlap(5L, START, END)).thenReturn(false);
         Reservation created = new Reservation(1L, 5L, "Anna", VehicleType.ELECTRIC, START, END,
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
-        when(reservationRepository.create(5L, "Anna", VehicleType.ELECTRIC, START, END)).thenReturn(created);
+        when(reservationRepository.create(5L, "Anna", VehicleType.ELECTRIC, START, END)).thenReturn(Optional.of(created));
 
         Reservation result = service.create(new CreateReservationRequest(5L, " Anna ", VehicleType.ELECTRIC, START, END));
         assertEquals(created, result);
@@ -128,13 +128,23 @@ class ReservationServiceTest {
     }
 
     @Test
-    void createReturns409OnDbConstraintViolation() {
+    void createReturns409WhenOverlapConstraintRejectsInsert() {
+        when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
+        when(reservationRepository.hasActiveOverlap(1L, START, END)).thenReturn(false);
+        when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, START, END)).thenReturn(Optional.empty());
+
+        assertThrows(ConflictException.class, () ->
+                service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, END)));
+    }
+
+    @Test
+    void createPassesOtherIntegrityErrorsThrough() {
         when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.hasActiveOverlap(1L, START, END)).thenReturn(false);
         when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, START, END))
-                .thenThrow(new DataIntegrityViolationException("exclude constraint"));
+                .thenThrow(new DataIntegrityViolationException("invalid byte sequence"));
 
-        assertThrows(ConflictException.class, () ->
+        assertThrows(DataIntegrityViolationException.class, () ->
                 service.create(new CreateReservationRequest(1L, "Anna", VehicleType.STANDARD, START, END)));
     }
 

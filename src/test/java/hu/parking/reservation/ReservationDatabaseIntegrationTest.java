@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -39,6 +40,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest
 @Testcontainers
@@ -65,7 +69,7 @@ class ReservationDatabaseIntegrationTest {
     @Autowired
     ReservationService reservationService;
 
-    @Autowired
+    @MockitoSpyBean
     ReservationRepository reservationRepository;
 
     @Autowired
@@ -98,10 +102,37 @@ class ReservationDatabaseIntegrationTest {
 
         Callable<Boolean> createReservation = () -> {
             startBarrier.await(5, TimeUnit.SECONDS);
+            return reservationRepository.create(6L, "Concurrent", VehicleType.ELECTRIC, start, end).isPresent();
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Boolean> first = executor.submit(createReservation);
+            Future<Boolean> second = executor.submit(createReservation);
+
+            int successes = (first.get(10, TimeUnit.SECONDS) ? 1 : 0)
+                    + (second.get(10, TimeUnit.SECONDS) ? 1 : 0);
+
+            assertEquals(1, successes);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void serviceReturnsConflictWhenBothRequestsPassTheOverlapCheck() throws Exception {
+        CyclicBarrier afterCheck = new CyclicBarrier(2);
+        doAnswer(invocation -> {
+            Object result = invocation.callRealMethod();
+            afterCheck.await(5, TimeUnit.SECONDS);
+            return result;
+        }).when(reservationRepository).hasActiveOverlap(anyLong(), any(), any());
+
+        Callable<Boolean> createReservation = () -> {
             try {
-                reservationRepository.create(6L, "Concurrent", VehicleType.ELECTRIC, start, end);
+                reservationService.create(new CreateReservationRequest(1L, "Racer", VehicleType.STANDARD, T10, T11));
                 return true;
-            } catch (DataIntegrityViolationException exception) {
+            } catch (ConflictException exception) {
                 return false;
             }
         };
@@ -118,6 +149,12 @@ class ReservationDatabaseIntegrationTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void otherIntegrityErrorIsNotReportedAsConflict() {
+        assertThrows(DataIntegrityViolationException.class, () ->
+                reservationService.create(new CreateReservationRequest(1L, "An\u0000na", VehicleType.STANDARD, T10, T11)));
     }
 
     @Test
