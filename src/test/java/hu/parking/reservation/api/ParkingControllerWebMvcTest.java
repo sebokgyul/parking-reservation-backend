@@ -1,5 +1,6 @@
 package hu.parking.reservation.api;
 
+import hu.parking.reservation.domain.OccupiedInterval;
 import hu.parking.reservation.domain.ParkingSpot;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
@@ -20,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ParkingController.class)
 @ExtendWith(OutputCaptureExtension.class)
 class ParkingControllerWebMvcTest {
+
+    private static final UUID ID = UUID.fromString("6f1c2a52-3d4e-4b8a-9c71-2f5e8d9a0b13");
 
     @Autowired
     MockMvc mockMvc;
@@ -54,7 +58,7 @@ class ParkingControllerWebMvcTest {
 
     @Test
     void createReservationReturns201() throws Exception {
-        Reservation reservation = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD,
+        Reservation reservation = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD,
                 OffsetDateTime.parse("2030-06-10T10:00:00+02:00"),
                 OffsetDateTime.parse("2030-06-10T11:00:00+02:00"),
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
@@ -72,7 +76,7 @@ class ParkingControllerWebMvcTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1));
+                .andExpect(jsonPath("$.id").value(ID.toString()));
     }
 
     @Test
@@ -186,6 +190,21 @@ class ParkingControllerWebMvcTest {
     }
 
     @Test
+    void listReservationsReturnsOnlyIntervals() throws Exception {
+        when(reservationService.findReservations(anyLong(), any(), any())).thenReturn(List.of(new OccupiedInterval(
+                OffsetDateTime.parse("2030-06-10T08:00:00Z"), OffsetDateTime.parse("2030-06-10T09:00:00Z"))));
+
+        mockMvc.perform(get("/parking-spots/1/reservations")
+                        .param("from", "2030-06-10T00:00:00Z")
+                        .param("to", "2030-06-11T00:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].startTime").value("2030-06-10T08:00:00Z"))
+                .andExpect(jsonPath("$[0].endTime").value("2030-06-10T09:00:00Z"))
+                .andExpect(jsonPath("$[0].id").doesNotExist())
+                .andExpect(jsonPath("$[0].requesterName").doesNotExist());
+    }
+
+    @Test
     void listReservationsReturns400WhenMissingTimeParams() throws Exception {
         mockMvc.perform(get("/parking-spots/1/reservations"))
                 .andExpect(status().isBadRequest());
@@ -193,23 +212,23 @@ class ParkingControllerWebMvcTest {
 
     @Test
     void cancelReservationReturns200() throws Exception {
-        Reservation cancelled = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD,
+        Reservation cancelled = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD,
                 OffsetDateTime.parse("2030-06-10T10:00:00+02:00"),
                 OffsetDateTime.parse("2030-06-10T11:00:00+02:00"),
                 ReservationStatus.CANCELLED, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
-        when(reservationService.cancel(anyLong())).thenReturn(cancelled);
+        when(reservationService.cancel(any())).thenReturn(cancelled);
 
-        mockMvc.perform(post("/reservations/1/cancel"))
+        mockMvc.perform(post("/reservations/" + ID + "/cancel"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 
     @Test
     void cancelReservationReturns404ForMissing() throws Exception {
-        when(reservationService.cancel(anyLong()))
+        when(reservationService.cancel(any()))
                 .thenThrow(new NotFoundException("Reservation not found"));
 
-        mockMvc.perform(post("/reservations/999/cancel"))
+        mockMvc.perform(post("/reservations/" + UUID.randomUUID() + "/cancel"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Reservation not found"));
     }
@@ -237,5 +256,13 @@ class ParkingControllerWebMvcTest {
     void unsupportedAcceptTypeReturns406() throws Exception {
         mockMvc.perform(get("/parking-spots").accept(MediaType.APPLICATION_XML))
                 .andExpect(status().isNotAcceptable());
+    }
+
+    @Test
+    void cancelReservationReturns400ForMalformedId() throws Exception {
+        mockMvc.perform(post("/reservations/123/cancel"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed or invalid request value"));
+        verify(reservationService, never()).cancel(any());
     }
 }

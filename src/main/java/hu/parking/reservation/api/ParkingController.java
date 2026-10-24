@@ -1,5 +1,6 @@
 package hu.parking.reservation.api;
 
+import hu.parking.reservation.domain.OccupiedInterval;
 import hu.parking.reservation.domain.ParkingSpot;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.service.NewReservation;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 public class ParkingController {
@@ -32,7 +34,7 @@ public class ParkingController {
     }
 
     @GetMapping("/parking-spots/{spotId}/reservations")
-    public List<Reservation> listReservations(
+    public List<OccupiedInterval> listReservations(
             @PathVariable long spotId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
@@ -47,7 +49,7 @@ public class ParkingController {
     }
 
     @PostMapping("/reservations/{reservationId}/cancel")
-    public Reservation cancelReservation(@PathVariable long reservationId) {
+    public Reservation cancelReservation(@PathVariable UUID reservationId) {
         return reservationService.cancel(reservationId);
     }
 }

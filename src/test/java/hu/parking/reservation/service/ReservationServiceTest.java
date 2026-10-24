@@ -1,5 +1,6 @@
 package hu.parking.reservation.service;
 
+import hu.parking.reservation.domain.OccupiedInterval;
 import hu.parking.reservation.domain.ParkingSpot;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
@@ -21,6 +22,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceTest {
 
+    private static final UUID ID = UUID.fromString("6f1c2a52-3d4e-4b8a-9c71-2f5e8d9a0b13");
     private static final Instant NOW = Instant.parse("2030-06-10T08:00:00Z");
     private static final OffsetDateTime START = OffsetDateTime.parse("2030-06-10T10:00:00+02:00");
     private static final OffsetDateTime END = OffsetDateTime.parse("2030-06-10T11:00:00+02:00");
@@ -91,7 +94,7 @@ class ReservationServiceTest {
         OffsetDateTime end = START.plusHours(24);
         when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.hasActiveOverlap(1L, START, end)).thenReturn(false);
-        Reservation created = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, START, end,
+        Reservation created = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, START, end,
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
         when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, START, end)).thenReturn(Optional.of(created));
 
@@ -132,7 +135,7 @@ class ReservationServiceTest {
     void createAllowsElectricVehicleOnElectricSpot() {
         when(parkingSpotRepository.findById(5L)).thenReturn(Optional.of(electricSpot(5L)));
         when(reservationRepository.hasActiveOverlap(5L, START, END)).thenReturn(false);
-        Reservation created = new Reservation(1L, 5L, "Anna", VehicleType.ELECTRIC, START, END,
+        Reservation created = new Reservation(ID, 5L, "Anna", VehicleType.ELECTRIC, START, END,
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
         when(reservationRepository.create(5L, "Anna", VehicleType.ELECTRIC, START, END)).thenReturn(Optional.of(created));
 
@@ -179,62 +182,62 @@ class ReservationServiceTest {
 
     @Test
     void cancelReturns404WhenReservationMissing() {
-        when(reservationRepository.findById(42L)).thenReturn(Optional.empty());
-        assertThrows(NotFoundException.class, () -> service.cancel(42L));
+        when(reservationRepository.findById(ID)).thenReturn(Optional.empty());
+        assertThrows(NotFoundException.class, () -> service.cancel(ID));
     }
 
     @Test
     void cancelReturns409WhenAlreadyCancelled() {
-        Reservation cancelled = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, START, END,
+        Reservation cancelled = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, START, END,
                 ReservationStatus.CANCELLED, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
-        when(reservationRepository.findById(1L)).thenReturn(Optional.of(cancelled));
-        assertThrows(ConflictException.class, () -> service.cancel(1L));
+        when(reservationRepository.findById(ID)).thenReturn(Optional.of(cancelled));
+        assertThrows(ConflictException.class, () -> service.cancel(ID));
     }
 
     @Test
     void cancelReturns409WhenRaceConditionEmptiesUpdate() {
-        Reservation active = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, START, END,
+        Reservation active = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, START, END,
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
-        when(reservationRepository.findById(1L)).thenReturn(Optional.of(active));
-        when(reservationRepository.cancel(1L)).thenReturn(Optional.empty());
-        assertThrows(ConflictException.class, () -> service.cancel(1L));
+        when(reservationRepository.findById(ID)).thenReturn(Optional.of(active));
+        when(reservationRepository.cancel(ID)).thenReturn(Optional.empty());
+        assertThrows(ConflictException.class, () -> service.cancel(ID));
     }
 
     @Test
     void cancelReturns409WhenReservationHasEnded() {
-        Reservation ended = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD,
+        Reservation ended = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD,
                 OffsetDateTime.parse("2030-06-10T06:00:00Z"), OffsetDateTime.parse("2030-06-10T07:00:00Z"),
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-09T08:00:00Z"));
-        when(reservationRepository.findById(1L)).thenReturn(Optional.of(ended));
+        when(reservationRepository.findById(ID)).thenReturn(Optional.of(ended));
 
-        ConflictException exception = assertThrows(ConflictException.class, () -> service.cancel(1L));
+        ConflictException exception = assertThrows(ConflictException.class, () -> service.cancel(ID));
         assertEquals("Reservation has already ended", exception.getMessage());
-        verify(reservationRepository, never()).cancel(anyLong());
+        verify(reservationRepository, never()).cancel(any());
     }
 
     @Test
     void cancelSucceedsForRunningReservation() {
         OffsetDateTime start = OffsetDateTime.parse("2030-06-10T07:00:00Z");
         OffsetDateTime end = OffsetDateTime.parse("2030-06-10T09:00:00Z");
-        Reservation running = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, start, end,
+        Reservation running = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, start, end,
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-09T08:00:00Z"));
-        Reservation cancelled = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, start, end,
+        Reservation cancelled = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, start, end,
                 ReservationStatus.CANCELLED, OffsetDateTime.parse("2030-06-09T08:00:00Z"));
-        when(reservationRepository.findById(1L)).thenReturn(Optional.of(running));
-        when(reservationRepository.cancel(1L)).thenReturn(Optional.of(cancelled));
+        when(reservationRepository.findById(ID)).thenReturn(Optional.of(running));
+        when(reservationRepository.cancel(ID)).thenReturn(Optional.of(cancelled));
 
-        assertEquals(ReservationStatus.CANCELLED, service.cancel(1L).status());
+        assertEquals(ReservationStatus.CANCELLED, service.cancel(ID).status());
     }
 
     @Test
     void cancelSucceedsForActiveReservation() {
-        Reservation active = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, START, END,
+        Reservation active = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, START, END,
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
-        Reservation cancelled = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, START, END,
+        Reservation cancelled = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, START, END,
                 ReservationStatus.CANCELLED, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
-        when(reservationRepository.findById(1L)).thenReturn(Optional.of(active));
-        when(reservationRepository.cancel(1L)).thenReturn(Optional.of(cancelled));
-        Reservation result = service.cancel(1L);
+        when(reservationRepository.findById(ID)).thenReturn(Optional.of(active));
+        when(reservationRepository.cancel(ID)).thenReturn(Optional.of(cancelled));
+        Reservation result = service.cancel(ID);
         assertEquals(ReservationStatus.CANCELLED, result.status());
     }
 
@@ -254,10 +257,8 @@ class ReservationServiceTest {
     @Test
     void findReservationsReturnsOverlappingActiveOnes() {
         when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
-        Reservation r = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, START, END,
-                ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
-        when(reservationRepository.findActiveOverlapping(1L, START, END)).thenReturn(List.of(r));
-        List<Reservation> result = service.findReservations(1L, START, END);
+        when(reservationRepository.findActiveIntervals(1L, START, END)).thenReturn(List.of(new OccupiedInterval(START, END)));
+        List<OccupiedInterval> result = service.findReservations(1L, START, END);
         assertEquals(1, result.size());
     }
 }

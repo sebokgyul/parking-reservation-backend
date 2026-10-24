@@ -1,5 +1,6 @@
 package hu.parking.reservation.repository;
 
+import hu.parking.reservation.domain.OccupiedInterval;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.VehicleType;
@@ -12,6 +13,7 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class ReservationRepository {
@@ -47,24 +49,26 @@ public class ReservationRepository {
         }
     }
 
-    public List<Reservation> findActiveOverlapping(long parkingSpotId, OffsetDateTime from, OffsetDateTime to) {
+    public List<OccupiedInterval> findActiveIntervals(long parkingSpotId, OffsetDateTime from, OffsetDateTime to) {
         return jdbcTemplate.query("""
-                SELECT id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
+                SELECT start_time, end_time
                 FROM reservations
                 WHERE parking_spot_id = ? AND status = 'ACTIVE'
                   AND start_time < ? AND end_time > ?
                 ORDER BY start_time
-                """, this::mapReservation, parkingSpotId, to, from);
+                """, (rs, rowNum) -> new OccupiedInterval(
+                        rs.getObject("start_time", OffsetDateTime.class), rs.getObject("end_time", OffsetDateTime.class)),
+                parkingSpotId, to, from);
     }
 
-    public Optional<Reservation> findById(long reservationId) {
+    public Optional<Reservation> findById(UUID reservationId) {
         return jdbcTemplate.query("""
                 SELECT id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
                 FROM reservations WHERE id = ?
                 """, this::mapReservation, reservationId).stream().findFirst();
     }
 
-    public Optional<Reservation> cancel(long reservationId) {
+    public Optional<Reservation> cancel(UUID reservationId) {
         return jdbcTemplate.query("""
                 UPDATE reservations SET status = 'CANCELLED'
                 WHERE id = ? AND status = 'ACTIVE'
@@ -80,7 +84,7 @@ public class ReservationRepository {
 
     private Reservation mapReservation(ResultSet rs, int rowNum) throws SQLException {
         return new Reservation(
-                rs.getLong("id"), rs.getLong("parking_spot_id"), rs.getString("requester_name"),
+                rs.getObject("id", UUID.class), rs.getLong("parking_spot_id"), rs.getString("requester_name"),
                 VehicleType.valueOf(rs.getString("vehicle_type")),
                 rs.getObject("start_time", OffsetDateTime.class), rs.getObject("end_time", OffsetDateTime.class),
                 ReservationStatus.valueOf(rs.getString("status")), rs.getObject("created_at", OffsetDateTime.class));

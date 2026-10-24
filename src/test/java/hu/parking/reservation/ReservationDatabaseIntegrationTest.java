@@ -1,5 +1,6 @@
 package hu.parking.reservation;
 
+import hu.parking.reservation.domain.OccupiedInterval;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.VehicleType;
@@ -35,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -207,15 +209,15 @@ class ReservationDatabaseIntegrationTest {
         reservationService.cancel(r1.id());
         reservationService.create(new NewReservation(4L, "Bela", VehicleType.STANDARD, T11, T12));
 
-        List<Reservation> result = reservationService.findReservations(4L, T10, T12);
+        List<OccupiedInterval> result = reservationService.findReservations(4L, T10, T12);
 
         assertEquals(1, result.size());
-        assertEquals("Bela", result.get(0).requesterName());
-        assertEquals(ReservationStatus.ACTIVE, result.get(0).status());
+        assertTrue(T11.isEqual(result.get(0).startTime()));
+        assertTrue(T12.isEqual(result.get(0).endTime()));
     }
 
     @Test
     void cancelReturns404ForMissingReservation() {
-        assertThrows(NotFoundException.class, () -> reservationService.cancel(999999L));
+        assertThrows(NotFoundException.class, () -> reservationService.cancel(UUID.randomUUID()));
     }
 }

@@ -1,9 +1,10 @@
 package hu.parking.reservation.domain;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public record Reservation(
-        long id,
+        UUID id,
         long parkingSpotId,
         String requesterName,
         VehicleType vehicleType,

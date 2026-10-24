@@ -1,5 +1,6 @@
 package hu.parking.reservation.service;
 
+import hu.parking.reservation.domain.OccupiedInterval;
 import hu.parking.reservation.domain.ParkingSpot;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
@@ -15,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ReservationService {
@@ -36,10 +38,10 @@ public class ReservationService {
         return parkingSpotRepository.findAll();
     }
 
-    public List<Reservation> findReservations(long spotId, OffsetDateTime from, OffsetDateTime to) {
+    public List<OccupiedInterval> findReservations(long spotId, OffsetDateTime from, OffsetDateTime to) {
         validateTimeRange(from, to, "from must be before to");
         requireSpot(spotId);
-        return reservationRepository.findActiveOverlapping(spotId, from, to);
+        return reservationRepository.findActiveIntervals(spotId, from, to);
     }
 
     @Transactional
@@ -60,7 +62,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation cancel(long reservationId) {
+    public Reservation cancel(UUID reservationId) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new NotFoundException("Reservation not found"));
         if (reservation.status() != ReservationStatus.ACTIVE) {
