@@ -95,6 +95,6 @@ Every handled error has the same shape:
 }
 ```
 
-An unknown path gives `404`, a wrong HTTP method gives `405`, and a non-JSON body on `POST /reservations` gives `415`.
+An unknown path gives `404`, a wrong HTTP method gives `405`, and a non-JSON body on `POST /reservations` gives `415`. An `Accept` header that rules out JSON gives `406` with an empty body, before anything is created.
 
 `GET /actuator/health` is exposed as well, for health checks.

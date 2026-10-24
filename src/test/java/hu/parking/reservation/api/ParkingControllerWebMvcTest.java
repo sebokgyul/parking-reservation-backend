@@ -284,6 +284,24 @@ class ParkingControllerWebMvcTest {
     }
 
     @Test
+    void createReservationReturns406ForNonJsonAcceptWithoutCreating() throws Exception {
+        mockMvc.perform(post("/reservations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_XML)
+                        .content("""
+                                {
+                                  "parkingSpotId": 1,
+                                  "requesterName": "Anna",
+                                  "vehicleType": "STANDARD",
+                                  "startTime": "2030-06-10T10:00:00+02:00",
+                                  "endTime": "2030-06-10T11:00:00+02:00"
+                                }
+                                """))
+                .andExpect(status().isNotAcceptable());
+        verify(reservationService, never()).create(any());
+    }
+
+    @Test
     void cancelReservationReturns400ForMalformedId() throws Exception {
         mockMvc.perform(post("/reservations/123/cancel"))
                 .andExpect(status().isBadRequest())
