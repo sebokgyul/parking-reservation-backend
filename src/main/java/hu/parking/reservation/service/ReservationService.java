@@ -34,14 +34,21 @@ public class ReservationService {
         this.clock = clock;
     }
 
+    @Transactional(readOnly = true)
     public List<ParkingSpot> listParkingSpots() {
         return parkingSpotRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<OccupiedInterval> findReservations(long spotId, OffsetDateTime from, OffsetDateTime to) {
-        validateTimeRange(from, to, "from must be before to");
+        validateRange(from, to, "from must be before to");
         requireSpot(spotId);
         return reservationRepository.findActiveIntervals(spotId, from, to);
+    }
+
+    @Transactional(readOnly = true)
+    public Reservation findReservation(UUID reservationId) {
+        return requireReservation(reservationId);
     }
 
     @Transactional
@@ -63,8 +70,7 @@ public class ReservationService {
 
     @Transactional
     public Reservation cancel(UUID reservationId) {
-        Reservation reservation = reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new NotFoundException("Reservation not found"));
+        Reservation reservation = requireReservation(reservationId);
         if (reservation.status() != ReservationStatus.ACTIVE) {
             throw new ConflictException("Reservation is already cancelled");
         }
@@ -80,8 +86,14 @@ public class ReservationService {
                 .orElseThrow(() -> new NotFoundException("Parking spot not found"));
     }
 
+    private Reservation requireReservation(UUID reservationId) {
+        return reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new NotFoundException("Reservation not found"));
+    }
+
     private void validateRequest(NewReservation request) {
-        validateTimeRange(request.startTime(), request.endTime(), "startTime must be before endTime");
+        validateRange(request.startTime(), request.endTime(), "startTime must be before endTime");
+        validateMinutePrecision(request.startTime(), request.endTime());
         Instant now = clock.instant();
         if (request.startTime().toInstant().isBefore(now)) {
             throw new InvalidRequestException("startTime must not be in the past");
@@ -94,10 +106,13 @@ public class ReservationService {
         }
     }
 
-    private void validateTimeRange(OffsetDateTime start, OffsetDateTime end, String message) {
+    private void validateRange(OffsetDateTime start, OffsetDateTime end, String message) {
         if (start == null || end == null || !start.isBefore(end)) {
             throw new InvalidRequestException(message);
         }
+    }
+
+    private void validateMinutePrecision(OffsetDateTime start, OffsetDateTime end) {
         if (start.getSecond() != 0 || start.getNano() != 0 || end.getSecond() != 0 || end.getNano() != 0) {
             throw new InvalidRequestException("Time values must have minute precision");
         }

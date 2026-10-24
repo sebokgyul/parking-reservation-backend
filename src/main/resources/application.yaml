@@ -7,8 +7,6 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/parking}
     username: ${DATABASE_USERNAME:parking}
     password: ${DATABASE_PASSWORD:parking}
-  flyway:
-    enabled: true
 
 server:
   error:

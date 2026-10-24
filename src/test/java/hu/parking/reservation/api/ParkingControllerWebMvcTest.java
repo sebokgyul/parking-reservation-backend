@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -76,7 +77,31 @@ class ParkingControllerWebMvcTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/reservations/" + ID))
                 .andExpect(jsonPath("$.id").value(ID.toString()));
+    }
+
+    @Test
+    void getReservationReturns200() throws Exception {
+        Reservation reservation = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD,
+                OffsetDateTime.parse("2030-06-10T08:00:00Z"),
+                OffsetDateTime.parse("2030-06-10T09:00:00Z"),
+                ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-01T08:00:00Z"));
+        when(reservationService.findReservation(ID)).thenReturn(reservation);
+
+        mockMvc.perform(get("/reservations/" + ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(ID.toString()))
+                .andExpect(jsonPath("$.requesterName").value("Anna"));
+    }
+
+    @Test
+    void getReservationReturns404ForMissing() throws Exception {
+        when(reservationService.findReservation(any())).thenThrow(new NotFoundException("Reservation not found"));
+
+        mockMvc.perform(get("/reservations/" + UUID.randomUUID()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Reservation not found"));
     }
 
     @Test

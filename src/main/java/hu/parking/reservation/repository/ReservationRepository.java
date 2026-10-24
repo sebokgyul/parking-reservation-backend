@@ -17,6 +17,11 @@ import java.util.UUID;
 
 @Repository
 public class ReservationRepository {
+    private static final String COLUMNS =
+            "id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at";
+    private static final String ACTIVE_OVERLAP =
+            "parking_spot_id = ? AND status = 'ACTIVE' AND start_time < ? AND end_time > ?";
+
     private final JdbcTemplate jdbcTemplate;
 
     public ReservationRepository(JdbcTemplate jdbcTemplate) {
@@ -24,12 +29,9 @@ public class ReservationRepository {
     }
 
     public boolean hasActiveOverlap(long parkingSpotId, OffsetDateTime startTime, OffsetDateTime endTime) {
-        Integer count = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM reservations
-                WHERE parking_spot_id = ? AND status = 'ACTIVE'
-                  AND start_time < ? AND end_time > ?
-                """, Integer.class, parkingSpotId, endTime, startTime);
-        return count != null && count > 0;
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM reservations WHERE %s)
+                """.formatted(ACTIVE_OVERLAP), Boolean.class, parkingSpotId, endTime, startTime));
     }
 
     public Optional<Reservation> create(long parkingSpotId, String requesterName, VehicleType vehicleType,
@@ -38,8 +40,8 @@ public class ReservationRepository {
             return jdbcTemplate.query("""
                     INSERT INTO reservations (parking_spot_id, requester_name, vehicle_type, start_time, end_time)
                     VALUES (?, ?, ?, ?, ?)
-                    RETURNING id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
-                    """, this::mapReservation, parkingSpotId, requesterName, vehicleType.name(), startTime, endTime)
+                    RETURNING %s
+                    """.formatted(COLUMNS), this::mapReservation, parkingSpotId, requesterName, vehicleType.name(), startTime, endTime)
                     .stream().findFirst();
         } catch (DataIntegrityViolationException exception) {
             if (isOverlapViolation(exception)) {
@@ -51,29 +53,26 @@ public class ReservationRepository {
 
     public List<OccupiedInterval> findActiveIntervals(long parkingSpotId, OffsetDateTime from, OffsetDateTime to) {
         return jdbcTemplate.query("""
-                SELECT start_time, end_time
-                FROM reservations
-                WHERE parking_spot_id = ? AND status = 'ACTIVE'
-                  AND start_time < ? AND end_time > ?
+                SELECT start_time, end_time FROM reservations
+                WHERE %s
                 ORDER BY start_time
-                """, (rs, rowNum) -> new OccupiedInterval(
+                """.formatted(ACTIVE_OVERLAP), (rs, rowNum) -> new OccupiedInterval(
                         rs.getObject("start_time", OffsetDateTime.class), rs.getObject("end_time", OffsetDateTime.class)),
                 parkingSpotId, to, from);
     }
 
     public Optional<Reservation> findById(UUID reservationId) {
         return jdbcTemplate.query("""
-                SELECT id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
-                FROM reservations WHERE id = ?
-                """, this::mapReservation, reservationId).stream().findFirst();
+                SELECT %s FROM reservations WHERE id = ?
+                """.formatted(COLUMNS), this::mapReservation, reservationId).stream().findFirst();
     }
 
     public Optional<Reservation> cancel(UUID reservationId) {
         return jdbcTemplate.query("""
                 UPDATE reservations SET status = 'CANCELLED'
                 WHERE id = ? AND status = 'ACTIVE'
-                RETURNING id, parking_spot_id, requester_name, vehicle_type, start_time, end_time, status, created_at
-                """, this::mapReservation, reservationId).stream().findFirst();
+                RETURNING %s
+                """.formatted(COLUMNS), this::mapReservation, reservationId).stream().findFirst();
     }
 
     private static boolean isOverlapViolation(DataIntegrityViolationException exception) {

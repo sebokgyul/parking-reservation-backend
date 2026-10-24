@@ -255,6 +255,21 @@ class ReservationServiceTest {
     }
 
     @Test
+    void findReservationsAcceptsSecondPrecisionWindow() {
+        OffsetDateTime from = OffsetDateTime.parse("2030-06-10T10:00:30+02:00");
+        when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
+        when(reservationRepository.findActiveIntervals(1L, from, END)).thenReturn(List.of());
+
+        assertEquals(List.of(), service.findReservations(1L, from, END));
+    }
+
+    @Test
+    void findReservationReturns404WhenMissing() {
+        when(reservationRepository.findById(ID)).thenReturn(Optional.empty());
+        assertThrows(NotFoundException.class, () -> service.findReservation(ID));
+    }
+
+    @Test
     void findReservationsReturnsOverlappingActiveOnes() {
         when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
         when(reservationRepository.findActiveIntervals(1L, START, END)).thenReturn(List.of(new OccupiedInterval(START, END)));
