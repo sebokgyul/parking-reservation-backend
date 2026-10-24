@@ -98,24 +98,26 @@ class ReservationDatabaseIntegrationTest {
 
     @Test
     void databaseConstraintAllowsOnlyOneConcurrentDirectInsert() throws Exception {
-        OffsetDateTime start = OffsetDateTime.parse("2030-06-10T13:00:00+02:00");
-        OffsetDateTime end = OffsetDateTime.parse("2030-06-10T14:00:00+02:00");
-        CyclicBarrier startBarrier = new CyclicBarrier(2);
-
-        Callable<Boolean> createReservation = () -> {
-            startBarrier.await(5, TimeUnit.SECONDS);
-            return reservationRepository.create(6L, "Concurrent", VehicleType.ELECTRIC, start, end).isPresent();
-        };
-
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
-            Future<Boolean> first = executor.submit(createReservation);
-            Future<Boolean> second = executor.submit(createReservation);
+            for (int round = 0; round < 5; round++) {
+                OffsetDateTime start = OffsetDateTime.parse("2030-06-10T13:00:00+02:00").plusHours(round);
+                OffsetDateTime end = start.plusHours(1);
+                CyclicBarrier startBarrier = new CyclicBarrier(2);
 
-            int successes = (first.get(10, TimeUnit.SECONDS) ? 1 : 0)
-                    + (second.get(10, TimeUnit.SECONDS) ? 1 : 0);
+                Callable<Boolean> createReservation = () -> {
+                    startBarrier.await(5, TimeUnit.SECONDS);
+                    return reservationRepository.create(6L, "Concurrent", VehicleType.ELECTRIC, start, end).isPresent();
+                };
 
-            assertEquals(1, successes);
+                Future<Boolean> first = executor.submit(createReservation);
+                Future<Boolean> second = executor.submit(createReservation);
+
+                int successes = (first.get(10, TimeUnit.SECONDS) ? 1 : 0)
+                        + (second.get(10, TimeUnit.SECONDS) ? 1 : 0);
+
+                assertEquals(1, successes);
+            }
         } finally {
             executor.shutdownNow();
         }

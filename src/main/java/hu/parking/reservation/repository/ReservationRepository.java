@@ -4,7 +4,9 @@ import hu.parking.reservation.domain.OccupiedInterval;
 import hu.parking.reservation.domain.Reservation;
 import hu.parking.reservation.domain.ReservationStatus;
 import hu.parking.reservation.domain.VehicleType;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -43,7 +45,7 @@ public class ReservationRepository {
                     RETURNING %s
                     """.formatted(COLUMNS), this::mapReservation, parkingSpotId, requesterName, vehicleType.name(), startTime, endTime)
                     .stream().findFirst();
-        } catch (DataIntegrityViolationException exception) {
+        } catch (DataIntegrityViolationException | PessimisticLockingFailureException exception) {
             if (isOverlapViolation(exception)) {
                 return Optional.empty();
             }
@@ -75,10 +77,14 @@ public class ReservationRepository {
                 """.formatted(COLUMNS), this::mapReservation, reservationId).stream().findFirst();
     }
 
-    private static boolean isOverlapViolation(DataIntegrityViolationException exception) {
-        return exception.getMostSpecificCause() instanceof SQLException sql
-                && "23P01".equals(sql.getSQLState())
+    private static boolean isOverlapViolation(DataAccessException exception) {
+        if (!(exception.getMostSpecificCause() instanceof SQLException sql)) {
+            return false;
+        }
+        boolean exclusionViolation = "23P01".equals(sql.getSQLState())
                 && String.valueOf(sql.getMessage()).contains("reservations_no_active_time_overlap");
+        boolean deadlockWithOverlappingInsert = "40P01".equals(sql.getSQLState());
+        return exclusionViolation || deadlockWithOverlappingInsert;
     }
 
     private Reservation mapReservation(ResultSet rs, int rowNum) throws SQLException {
