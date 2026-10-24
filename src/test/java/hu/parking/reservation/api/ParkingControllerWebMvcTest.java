@@ -24,6 +24,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -99,7 +101,72 @@ class ParkingControllerWebMvcTest {
         mockMvc.perform(post("/reservations")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ not valid json"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed or invalid request value"));
+    }
+
+    @Test
+    void createReservationReturns400WithMissingFieldNames() throws Exception {
+        mockMvc.perform(post("/reservations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("endTime must not be null; parkingSpotId must not be null; "
+                        + "requesterName must not be blank; startTime must not be null; vehicleType must not be null"));
+        verify(reservationService, never()).create(any());
+    }
+
+    @Test
+    void createReservationRejectsBlankRequesterName() throws Exception {
+        mockMvc.perform(post("/reservations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "parkingSpotId": 1,
+                                  "requesterName": "  ",
+                                  "vehicleType": "STANDARD",
+                                  "startTime": "2030-06-10T10:00:00+02:00",
+                                  "endTime": "2030-06-10T11:00:00+02:00"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("requesterName must not be blank"));
+        verify(reservationService, never()).create(any());
+    }
+
+    @Test
+    void createReservationRejectsControlCharactersInName() throws Exception {
+        mockMvc.perform(post("/reservations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "parkingSpotId": 1,
+                                  "requesterName": "An\\u0000na",
+                                  "vehicleType": "STANDARD",
+                                  "startTime": "2030-06-10T10:00:00+02:00",
+                                  "endTime": "2030-06-10T11:00:00+02:00"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("requesterName must not contain control characters"));
+        verify(reservationService, never()).create(any());
+    }
+
+    @Test
+    void createReservationNamesTheFieldWithInvalidEnumValue() throws Exception {
+        mockMvc.perform(post("/reservations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "parkingSpotId": 1,
+                                  "requesterName": "Anna",
+                                  "vehicleType": "electric",
+                                  "startTime": "2030-06-10T10:00:00+02:00",
+                                  "endTime": "2030-06-10T11:00:00+02:00"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid value for field 'vehicleType'"));
     }
 
     @Test

@@ -73,16 +73,6 @@ public class ReservationService {
     }
 
     private void validateRequest(CreateReservationRequest request) {
-        if (request == null || request.parkingSpotId() == null || request.requesterName() == null || request.vehicleType() == null
-                || request.startTime() == null || request.endTime() == null) {
-            throw new InvalidRequestException("parkingSpotId, requesterName, vehicleType, startTime and endTime are required");
-        }
-        if (request.requesterName().trim().isEmpty()) {
-            throw new InvalidRequestException("requesterName must not be blank");
-        }
-        if (request.requesterName().trim().length() > 100) {
-            throw new InvalidRequestException("requesterName must not exceed 100 characters");
-        }
         validateTimeRange(request.startTime(), request.endTime(), "startTime must be before endTime");
         if (request.startTime().toInstant().isBefore(clock.instant())) {
             throw new InvalidRequestException("startTime must not be in the past");

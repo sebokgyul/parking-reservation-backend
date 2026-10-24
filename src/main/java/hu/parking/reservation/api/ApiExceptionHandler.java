@@ -1,5 +1,6 @@
 package hu.parking.reservation.api;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import hu.parking.reservation.service.ConflictException;
 import hu.parking.reservation.service.InvalidRequestException;
 import hu.parking.reservation.service.NotFoundException;
@@ -15,6 +16,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -25,6 +27,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
@@ -78,6 +81,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         }
         if (exception instanceof NoResourceFoundException) {
             return "Resource not found";
+        }
+        if (exception instanceof MethodArgumentNotValidException notValid) {
+            return notValid.getBindingResult().getFieldErrors().stream()
+                    .map(error -> error.getField() + " " + error.getDefaultMessage())
+                    .sorted()
+                    .collect(Collectors.joining("; "));
+        }
+        if (exception instanceof HttpMessageNotReadableException
+                && exception.getCause() instanceof JsonMappingException mapping
+                && !mapping.getPath().isEmpty()) {
+            return "Invalid value for field '" + mapping.getPath().get(0).getFieldName() + "'";
         }
         if (exception instanceof HttpMessageNotReadableException
                 || exception instanceof TypeMismatchException

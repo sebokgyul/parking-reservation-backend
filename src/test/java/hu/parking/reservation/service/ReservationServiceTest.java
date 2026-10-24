@@ -64,12 +64,6 @@ class ReservationServiceTest {
     }
 
     @Test
-    void createRejectsBlankRequesterName() {
-        assertThrows(InvalidRequestException.class, () ->
-                service.create(new CreateReservationRequest(1L, "  ", VehicleType.STANDARD, START, END)));
-    }
-
-    @Test
     void createRejectsStartTimeInPast() {
         OffsetDateTime pastStart = OffsetDateTime.parse("2020-01-01T10:00:00+02:00");
         OffsetDateTime pastEnd = OffsetDateTime.parse("2020-01-01T11:00:00+02:00");
