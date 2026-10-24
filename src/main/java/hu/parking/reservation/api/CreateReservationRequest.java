@@ -10,7 +10,7 @@ import java.time.OffsetDateTime;
 
 public record CreateReservationRequest(
         @NotNull Long parkingSpotId,
-        @NotBlank @Size(max = 100) @Pattern(regexp = "\\P{Cntrl}*", message = "must not contain control characters")
+        @NotBlank @Size(max = 100) @Pattern(regexp = "\\P{Cc}*", message = "must not contain control characters")
         String requesterName,
         @NotNull VehicleType vehicleType,
         @NotNull OffsetDateTime startTime,

@@ -45,7 +45,7 @@ Needs `Content-Type: application/json`.
 }
 ```
 
-Every field is required. `requesterName` is trimmed, must be 1-100 characters and can't contain control characters. `startTime` must be before `endTime`, not in the past and at most 90 days ahead. A reservation is at most 24 hours long.
+Every field is required. `requesterName` can't be blank, longer than 100 characters or contain control characters, and is stored trimmed. `startTime` must be before `endTime`, not in the past and at most 90 days ahead. A reservation is at most 24 hours long.
 
 - `201` with the created reservation and `Location: /reservations/{id}`
 - `400` missing or invalid field. The message names the field, e.g. `parkingSpotId must not be null`

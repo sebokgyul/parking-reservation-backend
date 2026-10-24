@@ -182,6 +182,24 @@ class ParkingControllerWebMvcTest {
     }
 
     @Test
+    void createReservationRejectsUnicodeControlCharactersInName() throws Exception {
+        mockMvc.perform(post("/reservations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "parkingSpotId": 1,
+                                  "requesterName": "An\\u0085na",
+                                  "vehicleType": "STANDARD",
+                                  "startTime": "2030-06-10T10:00:00+02:00",
+                                  "endTime": "2030-06-10T11:00:00+02:00"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("requesterName must not contain control characters"));
+        verify(reservationService, never()).create(any());
+    }
+
+    @Test
     void createReservationNamesTheFieldWithInvalidEnumValue() throws Exception {
         mockMvc.perform(post("/reservations")
                         .contentType(MediaType.APPLICATION_JSON)
