@@ -11,12 +11,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 
 @Service
 public class ReservationService {
     private static final String OVERLAP_MESSAGE = "Parking spot is already reserved for the requested time interval";
+    private static final Duration MAX_DURATION = Duration.ofHours(24);
+    private static final Duration MAX_ADVANCE = Duration.ofDays(90);
 
     private final ParkingSpotRepository parkingSpotRepository;
     private final ReservationRepository reservationRepository;
@@ -62,6 +66,9 @@ public class ReservationService {
         if (reservation.status() != ReservationStatus.ACTIVE) {
             throw new ConflictException("Reservation is already cancelled");
         }
+        if (!reservation.endTime().toInstant().isAfter(clock.instant())) {
+            throw new ConflictException("Reservation has already ended");
+        }
         return reservationRepository.cancel(reservationId)
                 .orElseThrow(() -> new ConflictException("Reservation is already cancelled"));
     }
@@ -73,8 +80,15 @@ public class ReservationService {
 
     private void validateRequest(NewReservation request) {
         validateTimeRange(request.startTime(), request.endTime(), "startTime must be before endTime");
-        if (request.startTime().toInstant().isBefore(clock.instant())) {
+        Instant now = clock.instant();
+        if (request.startTime().toInstant().isBefore(now)) {
             throw new InvalidRequestException("startTime must not be in the past");
+        }
+        if (Duration.between(request.startTime(), request.endTime()).compareTo(MAX_DURATION) > 0) {
+            throw new InvalidRequestException("Reservation must not be longer than 24 hours");
+        }
+        if (request.startTime().toInstant().isAfter(now.plus(MAX_ADVANCE))) {
+            throw new InvalidRequestException("startTime must not be more than 90 days ahead");
         }
     }
 

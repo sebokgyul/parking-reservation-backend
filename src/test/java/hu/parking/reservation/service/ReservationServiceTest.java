@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -75,6 +76,34 @@ class ReservationServiceTest {
         OffsetDateTime startWithSeconds = OffsetDateTime.parse("2030-06-10T10:00:30+02:00");
         assertThrows(InvalidRequestException.class, () ->
                 service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, startWithSeconds, END)));
+    }
+
+    @Test
+    void createRejectsReservationLongerThan24Hours() {
+        OffsetDateTime end = START.plusHours(24).plusMinutes(1);
+        InvalidRequestException exception = assertThrows(InvalidRequestException.class, () ->
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, START, end)));
+        assertEquals("Reservation must not be longer than 24 hours", exception.getMessage());
+    }
+
+    @Test
+    void createAllowsExactly24Hours() {
+        OffsetDateTime end = START.plusHours(24);
+        when(parkingSpotRepository.findById(1L)).thenReturn(Optional.of(normalSpot(1L)));
+        when(reservationRepository.hasActiveOverlap(1L, START, end)).thenReturn(false);
+        Reservation created = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, START, end,
+                ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
+        when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, START, end)).thenReturn(Optional.of(created));
+
+        assertEquals(created, service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, START, end)));
+    }
+
+    @Test
+    void createRejectsStartMoreThan90DaysAhead() {
+        OffsetDateTime start = NOW.plus(Duration.ofDays(90)).plus(Duration.ofMinutes(1)).atOffset(ZoneOffset.UTC);
+        InvalidRequestException exception = assertThrows(InvalidRequestException.class, () ->
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, start, start.plusHours(1))));
+        assertEquals("startTime must not be more than 90 days ahead", exception.getMessage());
     }
 
     @Test
@@ -169,6 +198,32 @@ class ReservationServiceTest {
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(active));
         when(reservationRepository.cancel(1L)).thenReturn(Optional.empty());
         assertThrows(ConflictException.class, () -> service.cancel(1L));
+    }
+
+    @Test
+    void cancelReturns409WhenReservationHasEnded() {
+        Reservation ended = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD,
+                OffsetDateTime.parse("2030-06-10T06:00:00Z"), OffsetDateTime.parse("2030-06-10T07:00:00Z"),
+                ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-09T08:00:00Z"));
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(ended));
+
+        ConflictException exception = assertThrows(ConflictException.class, () -> service.cancel(1L));
+        assertEquals("Reservation has already ended", exception.getMessage());
+        verify(reservationRepository, never()).cancel(anyLong());
+    }
+
+    @Test
+    void cancelSucceedsForRunningReservation() {
+        OffsetDateTime start = OffsetDateTime.parse("2030-06-10T07:00:00Z");
+        OffsetDateTime end = OffsetDateTime.parse("2030-06-10T09:00:00Z");
+        Reservation running = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, start, end,
+                ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-09T08:00:00Z"));
+        Reservation cancelled = new Reservation(1L, 1L, "Anna", VehicleType.STANDARD, start, end,
+                ReservationStatus.CANCELLED, OffsetDateTime.parse("2030-06-09T08:00:00Z"));
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(running));
+        when(reservationRepository.cancel(1L)).thenReturn(Optional.of(cancelled));
+
+        assertEquals(ReservationStatus.CANCELLED, service.cancel(1L).status());
     }
 
     @Test

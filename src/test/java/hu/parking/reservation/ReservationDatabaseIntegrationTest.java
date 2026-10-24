@@ -158,6 +158,12 @@ class ReservationDatabaseIntegrationTest {
     }
 
     @Test
+    void databaseRejectsReservationLongerThan24Hours() {
+        assertThrows(DataIntegrityViolationException.class, () ->
+                reservationRepository.create(1L, "Anna", VehicleType.STANDARD, T10, T10.plusHours(25)));
+    }
+
+    @Test
     void adjacentReservationsDoNotOverlap() {
         reservationService.create(new NewReservation(2L, "Anna", VehicleType.STANDARD, T10, T11));
 
