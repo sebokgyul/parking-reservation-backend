@@ -109,7 +109,7 @@ public class ReservationService {
     }
 
     private void validateRange(OffsetDateTime start, OffsetDateTime end, String message) {
-        if (start == null || end == null || !start.isBefore(end)) {
+        if (!start.isBefore(end)) {
             throw new InvalidRequestException(message);
         }
     }
