@@ -1,6 +1,6 @@
 # parking-reservation-backend
 
-Small REST API for booking parking spots. Java 21, Spring Boot 3, Postgres, plain JdbcTemplate (no JPA).
+Small REST API for booking parking spots. Java 21, Spring Boot 3, Postgres, plain JdbcTemplate.
 
 The main thing it has to get right is that two active reservations for the same spot can't overlap. Checking for an overlap in the service and then inserting is racy, so the rule lives in Postgres as an exclusion constraint:
 
