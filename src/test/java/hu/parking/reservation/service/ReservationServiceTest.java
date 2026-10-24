@@ -68,8 +68,8 @@ class ReservationServiceTest {
 
     @Test
     void createRejectsStartTimeInPast() {
-        OffsetDateTime pastStart = OffsetDateTime.parse("2020-01-01T10:00:00+02:00");
-        OffsetDateTime pastEnd = OffsetDateTime.parse("2020-01-01T11:00:00+02:00");
+        OffsetDateTime pastStart = NOW.minus(Duration.ofMinutes(1)).atOffset(ZoneOffset.UTC);
+        OffsetDateTime pastEnd = pastStart.plusHours(1);
         assertThrows(InvalidRequestException.class, () ->
                 service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, pastStart, pastEnd)));
     }
@@ -79,6 +79,9 @@ class ReservationServiceTest {
         OffsetDateTime startWithSeconds = OffsetDateTime.parse("2030-06-10T10:00:30+02:00");
         assertThrows(InvalidRequestException.class, () ->
                 service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, startWithSeconds, END)));
+        OffsetDateTime endWithSeconds = OffsetDateTime.parse("2030-06-10T11:00:30+02:00");
+        assertThrows(InvalidRequestException.class, () ->
+                service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, START, endWithSeconds)));
     }
 
     @Test
@@ -107,6 +110,19 @@ class ReservationServiceTest {
         InvalidRequestException exception = assertThrows(InvalidRequestException.class, () ->
                 service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, start, start.plusHours(1))));
         assertEquals("startTime must not be more than 90 days ahead", exception.getMessage());
+    }
+
+    @Test
+    void createAllowsStartExactly90DaysAhead() {
+        OffsetDateTime start = NOW.plus(Duration.ofDays(90)).atOffset(ZoneOffset.UTC);
+        OffsetDateTime end = start.plusHours(1);
+        when(parkingSpotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(normalSpot(1L)));
+        when(reservationRepository.hasActiveOverlap(1L, start, end)).thenReturn(false);
+        Reservation created = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD, start, end,
+                ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-10T08:00:00Z"));
+        when(reservationRepository.create(1L, "Anna", VehicleType.STANDARD, start, end)).thenReturn(Optional.of(created));
+
+        assertEquals(created, service.create(new NewReservation(1L, "Anna", VehicleType.STANDARD, start, end)));
     }
 
     @Test
@@ -206,7 +222,7 @@ class ReservationServiceTest {
     @Test
     void cancelReturns409WhenReservationHasEnded() {
         Reservation ended = new Reservation(ID, 1L, "Anna", VehicleType.STANDARD,
-                OffsetDateTime.parse("2030-06-10T06:00:00Z"), OffsetDateTime.parse("2030-06-10T07:00:00Z"),
+                OffsetDateTime.parse("2030-06-10T07:00:00Z"), OffsetDateTime.parse("2030-06-10T08:00:00Z"),
                 ReservationStatus.ACTIVE, OffsetDateTime.parse("2030-06-09T08:00:00Z"));
         when(reservationRepository.findById(ID)).thenReturn(Optional.of(ended));
 

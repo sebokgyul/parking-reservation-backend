@@ -164,6 +164,14 @@ class ReservationDatabaseIntegrationTest {
     }
 
     @Test
+    void secondCancelUpdatesNothing() {
+        Reservation reservation = reservationService.create(new NewReservation(2L, "Anna", VehicleType.STANDARD, T10, T11));
+        reservationService.cancel(reservation.id());
+
+        assertTrue(reservationRepository.cancel(reservation.id()).isEmpty());
+    }
+
+    @Test
     void electricSpotRejectsStandardVehicle() {
         assertThrows(ConflictException.class, () ->
                 reservationService.create(new NewReservation(5L, "Anna", VehicleType.STANDARD, T10, T11)));
