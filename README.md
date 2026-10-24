@@ -13,7 +13,9 @@ EXCLUDE USING gist (
 
 Ranges are half-open, so 10:00-11:00 and 11:00-12:00 don't clash. Cancelling only flips the status to `CANCELLED`, which keeps the row but frees the slot. The service still runs its own overlap query first so the usual case gets a readable 409. The constraint is what handles two requests arriving at the same time, and `ReservationDatabaseIntegrationTest` fires two inserts in parallel to check that.
 
-Other rules: electric spots only take electric vehicles, inactive spots can't be booked, times are whole minutes and the start can't be in the past.
+Other rules: electric spots only take electric vehicles, inactive spots can't be booked, times are whole minutes, the start can't be in the past or more than 90 days ahead, a reservation is at most 24 hours long, and one that has already ended can't be cancelled.
+
+There are no user accounts. A reservation's id is a random UUID that works as its booking code: the client gets it in the 201 response and needs it to look up or cancel the reservation. The spot listing only shows the occupied intervals, not who booked them or their ids.
 
 ## Running
 
@@ -36,6 +38,7 @@ Needs JDK 21 and a running Docker daemon, because the integration tests start Po
 ```
 GET  /parking-spots
 POST /reservations
+GET  /reservations/{reservationId}
 GET  /parking-spots/{spotId}/reservations?from=...&to=...
 POST /reservations/{reservationId}/cancel
 ```
